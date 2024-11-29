@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 
+import 'EventListPage.dart';
+
 void main() {
   runApp(MyApp());
 }
@@ -20,6 +22,16 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
+
+  void _navigateToEventList() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EventListPage(people: people),
+      ),
+    );
+  }
+
   final List<Map<String, dynamic>> people = [
     {
       'name': 'Mariam Hassan',
@@ -76,7 +88,16 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Your friends')),
+      appBar: AppBar(
+          title: Text('Your friends'),
+          actions: [
+          IconButton(
+            icon: Icon(Icons.event),
+            onPressed: _navigateToEventList,
+            tooltip: 'View All Events',
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Padding(
