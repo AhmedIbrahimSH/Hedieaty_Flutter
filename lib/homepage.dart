@@ -14,7 +14,12 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class MainPage extends StatelessWidget {
+class MainPage extends StatefulWidget {
+  @override
+  _MainPageState createState() => _MainPageState();
+}
+
+class _MainPageState extends State<MainPage> {
   final List<Map<String, dynamic>> people = [
     {
       'name': 'Mariam Hassan',
@@ -23,11 +28,13 @@ class MainPage extends StatelessWidget {
         DateTime(2024, 12, 1): ['Mariam\'s Birthday Party'],
         DateTime(2024, 12, 10): ['Team Meeting']
       },
+      'gifts': ['Handbag', 'Smartwatch', 'Gift Card'],
     },
     {
       'name': 'Mina George',
       'avatar': 'https://i.pravatar.cc/150?img=2',
-      'events': {}, // No events for Mina
+      'events': {},
+      'gifts': ['Perfume', 'Laptop Sleeve'],
     },
     {
       'name': 'Hazem Mohamed',
@@ -35,6 +42,7 @@ class MainPage extends StatelessWidget {
       'events': {
         DateTime(2024, 12, 5): ['Project Launch'],
       },
+      'gifts': ['Bluetooth Speaker', 'Camera'],
     },
     {
       'name': 'Mazen Ali',
@@ -42,18 +50,56 @@ class MainPage extends StatelessWidget {
       'events': {
         DateTime(2024, 12, 8): ['Wedding Anniversary'],
       },
+      'gifts': ['Watch', 'Shoes'],
     },
   ];
+
+  List<Map<String, dynamic>> filteredPeople = [];
+  TextEditingController searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    filteredPeople = people; // Initialize with all people
+  }
+
+  void _filterPeople(String query) {
+    setState(() {
+      filteredPeople = people
+          .where((person) => person['name']
+          .toLowerCase()
+          .contains(query.toLowerCase()))
+          .toList();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Upcoming Events')),
-      body: ListView.builder(
-        itemCount: people.length,
-        itemBuilder: (context, index) {
-          return PersonRow(person: people[index]);
-        },
+      appBar: AppBar(title: Text('Your friends')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              controller: searchController,
+              onChanged: _filterPeople,
+              decoration: InputDecoration(
+                hintText: "Search for your friend's list",
+                labelText: 'Search',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: filteredPeople.length,
+              itemBuilder: (context, index) {
+                return PersonRow(person: filteredPeople[index]);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -96,6 +142,14 @@ class PersonRow extends StatelessWidget {
               ? "Upcoming Events: $upcomingEvents"
               : "No Upcoming Events",
         ),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => GiftListPage(person: person),
+            ),
+          );
+        },
       ),
     );
   }
@@ -153,7 +207,6 @@ class _CalendarPageState extends State<CalendarPage> {
               final normalizedDay = DateTime(day.year, day.month, day.day);
               return widget.events[normalizedDay] ?? [];
             },
-
             calendarStyle: CalendarStyle(
               todayDecoration: BoxDecoration(
                 color: Colors.blue,
@@ -177,10 +230,8 @@ class _CalendarPageState extends State<CalendarPage> {
               String displayMessage;
 
               if (events != null && events.isNotEmpty) {
-                // Join event names as a list (e.g., "Mariam's Birthday Party, Mina's Event")
                 displayMessage = 'Events on ${selectedDay.toLocal()}: ${events.join(', ')}';
               } else {
-                // If no events exist, show a message saying "No events"
                 displayMessage = 'No events for ${selectedDay.toLocal()}';
               }
 
@@ -190,8 +241,6 @@ class _CalendarPageState extends State<CalendarPage> {
                 ),
               );
             },
-
-
           ),
           if (_selectedDay != null)
             Padding(
@@ -201,6 +250,106 @@ class _CalendarPageState extends State<CalendarPage> {
                 style: TextStyle(fontSize: 16),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class GiftListPage extends StatefulWidget {
+  final Map<String, dynamic> person;
+
+  GiftListPage({required this.person});
+
+  @override
+  _GiftListPageState createState() => _GiftListPageState();
+}
+
+class _GiftListPageState extends State<GiftListPage> {
+  late List<String> giftList;
+  final TextEditingController giftController = TextEditingController();
+  final TextEditingController searchController = TextEditingController();
+  List<String> filteredGiftList = [];
+
+  @override
+  void initState() {
+    super.initState();
+    giftList = List<String>.from(widget.person['gifts']);
+    filteredGiftList = List<String>.from(giftList);
+  }
+
+  void _pledgeGift(String gift) {
+    setState(() {
+      giftList.add(gift);
+      filteredGiftList = List<String>.from(giftList);  // Reset filtered list
+    });
+    giftController.clear();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Pledged a gift: $gift')),
+    );
+  }
+
+  void _searchGifts(String query) {
+    setState(() {
+      filteredGiftList = giftList
+          .where((gift) => gift.toLowerCase().contains(query.toLowerCase()))
+          .toList();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text("${widget.person['name']}'s Gift List")),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              controller: searchController,
+              onChanged: _searchGifts,
+              decoration: InputDecoration(
+                hintText: "Search for gifts",
+                labelText: 'Search Gifts',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          Expanded(
+            child: filteredGiftList.isEmpty
+                ? Center(child: Text("No gifts found"))
+                : ListView.builder(
+              itemCount: filteredGiftList.length,
+              itemBuilder: (context, index) {
+                return ListTile(
+                  title: Text(filteredGiftList[index]),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: giftController,
+                    decoration: InputDecoration(
+                      labelText: 'Gift Name',
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.add),
+                  onPressed: () {
+                    if (giftController.text.isNotEmpty) {
+                      _pledgeGift(giftController.text);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
