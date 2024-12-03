@@ -267,7 +267,6 @@ class _EventListPageState extends State<EventListPage> {
                   },
                 ),
 
-                // Status Filter Dropdown
                 Expanded(
                   child: DropdownButton<String>(
                     value: _eventStatus,

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 import 'EventListPage.dart';
+import 'db_utils.dart';
 
 void main() {
   runApp(MyApp());
@@ -22,58 +24,81 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-
-  void _navigateToEventList() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EventListPage(people: people),
-      ),
-    );
-  }
-
-  final List<Map<String, dynamic>> people = [
-    {
-      'name': 'Mariam Hassan',
-      'avatar': 'https://i.pravatar.cc/150?img=1',
-      'events': {
-        DateTime(2024, 12, 1): ['Mariam\'s Birthday Party'],
-        DateTime(2024, 12, 10): ['Team Meeting']
-      },
-      'gifts': ['Handbag', 'Smartwatch', 'Gift Card'],
-    },
-    {
-      'name': 'Mina George',
-      'avatar': 'https://i.pravatar.cc/150?img=2',
-      'events': {},
-      'gifts': ['Perfume', 'Laptop Sleeve'],
-    },
-    {
-      'name': 'Hazem Mohamed',
-      'avatar': 'https://i.pravatar.cc/150?img=3',
-      'events': {
-        DateTime(2024, 12, 5): ['Project Launch'],
-      },
-      'gifts': ['Bluetooth Speaker', 'Camera'],
-    },
-    {
-      'name': 'Mazen Ali',
-      'avatar': 'https://i.pravatar.cc/150?img=4',
-      'events': {
-        DateTime(2024, 12, 8): ['Wedding Anniversary'],
-      },
-      'gifts': ['Watch', 'Shoes'],
-    },
-  ];
-
+  List<Map<String, dynamic>> people = [];
   List<Map<String, dynamic>> filteredPeople = [];
   TextEditingController searchController = TextEditingController();
+  String username = 'Mina George';
 
   @override
   void initState() {
     super.initState();
-    filteredPeople = people; // Initialize with all people
+    _initializeDatabase();
   }
+
+  void _initializeDatabase() async {
+    final db = await initializeDatabase();
+    List<Map<String, dynamic>> peopleList = await populateFriendsList(db, username);
+    setState(() {
+      people = peopleList;
+      filteredPeople = peopleList;
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> populateFriendsList(Database db, String username) async {
+    final userResult = await db.query('users', where: 'name = ?', whereArgs: [username]);
+
+    if (userResult.isEmpty) {
+      return [];
+    }
+
+    final userId = userResult.first['id'];
+
+    final friendIdsResult = await db.query('friendships', where: 'user_id = ?', whereArgs: [userId]);
+
+    List<int> friendIds = friendIdsResult.map((friendship) => friendship['friend_id'] as int).toList();
+
+    if (friendIds.isEmpty) {
+      return [];
+    }
+
+    List<Map<String, dynamic>> friendsList = [];
+    for (int friendId in friendIds) {
+      final friendDetails = await db.query('users', where: 'id = ?', whereArgs: [friendId]);
+
+      if (friendDetails.isNotEmpty) {
+        final friend = friendDetails.first;
+
+        final eventResults = await db.query(
+          'events',
+          where: 'user_id = ?',
+          whereArgs: [friendId],
+        );
+
+
+        Map<DateTime, List<String>> events = {};
+        for (var event in eventResults) {
+          final eventDate = DateTime.parse(event['event_date'] as String);
+          if (!events.containsKey(eventDate)) {
+            events[eventDate] = [];
+          }
+          events[eventDate]?.add(event['event_name'] as String);
+        }
+
+        print("events are $events");
+
+
+        friendsList.add({
+          'name': friend['name'],
+          'avatar': friend['avatar'],
+          'events': events,
+          'gifts': [],
+        });
+      }
+    }
+
+    return friendsList;
+  }
+
 
   void _filterPeople(String query) {
     setState(() {
@@ -89,11 +114,11 @@ class _MainPageState extends State<MainPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-          title: Text('Your friends'),
-          actions: [
+        title: Text('Your friends'),
+        actions: [
           IconButton(
             icon: Icon(Icons.event),
-            onPressed: _navigateToEventList,
+            onPressed: (){},
             tooltip: 'View All Events',
           ),
         ],
@@ -302,7 +327,7 @@ class _GiftListPageState extends State<GiftListPage> {
   void _pledgeGift(String gift) {
     setState(() {
       giftList.add(gift);
-      filteredGiftList = List<String>.from(giftList);  // Reset filtered list
+      filteredGiftList = List<String>.from(giftList);
     });
     giftController.clear();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -330,21 +355,17 @@ class _GiftListPageState extends State<GiftListPage> {
               controller: searchController,
               onChanged: _searchGifts,
               decoration: InputDecoration(
-                hintText: "Search for gifts",
+                hintText: "Search gifts",
                 labelText: 'Search Gifts',
                 border: OutlineInputBorder(),
               ),
             ),
           ),
           Expanded(
-            child: filteredGiftList.isEmpty
-                ? Center(child: Text("No gifts found"))
-                : ListView.builder(
+            child: ListView.builder(
               itemCount: filteredGiftList.length,
               itemBuilder: (context, index) {
-                return ListTile(
-                  title: Text(filteredGiftList[index]),
-                );
+                return ListTile(title: Text(filteredGiftList[index]));
               },
             ),
           ),
@@ -355,18 +376,12 @@ class _GiftListPageState extends State<GiftListPage> {
                 Expanded(
                   child: TextField(
                     controller: giftController,
-                    decoration: InputDecoration(
-                      labelText: 'Gift Name',
-                    ),
+                    decoration: InputDecoration(hintText: "Enter a new gift"),
                   ),
                 ),
                 IconButton(
                   icon: Icon(Icons.add),
-                  onPressed: () {
-                    if (giftController.text.isNotEmpty) {
-                      _pledgeGift(giftController.text);
-                    }
-                  },
+                  onPressed: () => _pledgeGift(giftController.text),
                 ),
               ],
             ),
