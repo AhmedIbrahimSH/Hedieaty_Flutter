@@ -302,23 +302,7 @@ class _EventListPageState extends State<EventListPage> {
                   ),
                   title: Text(event['eventName']),
                   subtitle: Text('${event['name']} - ${event['date'].toString()}'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.edit),
-                        onPressed: () => _showEditEventDialog(event),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.delete),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Event deleted (placeholder)')),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+
                 );
               },
             ),

@@ -189,7 +189,7 @@ void main() async {
 
   List<Map<String, dynamic>> users = await fetchUsers(db);
   print(users);
-
+  await addColumn(db, 'users', 'notstatus', 'INTEGAR');
 
   runApp(MyApp());
 }
