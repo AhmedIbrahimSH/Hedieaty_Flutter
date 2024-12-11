@@ -12,6 +12,7 @@ Future <void> fetchuser() async{
   }
 }
 
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();

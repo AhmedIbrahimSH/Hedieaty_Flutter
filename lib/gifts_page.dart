@@ -1,9 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:table_calendar/table_calendar.dart';
-
-import 'EventListPage.dart';
-import 'db_utils.dart';
 
 
 class GiftListPage extends StatefulWidget {

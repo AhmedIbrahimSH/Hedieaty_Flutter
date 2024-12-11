@@ -1,8 +1,14 @@
 import 'package:app/homepage.dart';
+import 'package:app/login/signup.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'dart:math';
-
-void main() {
+import '../firebase/fire_auth.dart';
+void main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();  // Ensure Firebase is initialized before running the app.
+  // AuthService.init_firebase();
   runApp(MyApp());
 }
 
@@ -21,6 +27,7 @@ class MyApp extends StatelessWidget {
 }
 
 class LoginPage extends StatefulWidget {
+
   @override
   _LoginPageState createState() => _LoginPageState();
 }
@@ -28,7 +35,26 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final AuthService _user_auth = AuthService();
 
+
+  bool login_check(user_mail, user_password) {
+    try {
+      print("Email: $user_mail, Password: $user_password"); // Debug log
+      var user_creds = _user_auth.authenticateUser(user_mail, user_password);
+      if (user_creds != null) {
+        print("Authentication successful: ${user_creds}");
+        return true;  // Success
+      } else {
+        print("Authentication failed: Invalid credentials");
+        return false;  // Failure
+      }
+    }
+    on FirebaseAuthException catch (e) {
+      print('exception occured : ${e}');
+      return false;
+    }
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -87,19 +113,14 @@ class _LoginPageState extends State<LoginPage> {
                     SizedBox(height: 20),
                     ElevatedButton(
                       onPressed: () {
-                        Navigator.of(context).push(
-                          PageRouteBuilder(
-                            pageBuilder: (context, animation, secondaryAnimation) {
-                              return GiftBoxTransitionPage();
-                            },
-                            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                              return FadeTransition(
-                                opacity: animation,
-                                child: child,
-                              );
-                            },
-                          ),
-                        );
+                        if (login_check(_emailController.text, _passwordController.text)) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => HomePage(currentUserMail: _emailController.text),
+                            ),
+                          );
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue[700],
@@ -116,6 +137,22 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ),
+                    SizedBox(height: 10),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => SignupPage()),
+                        );
+                      },
+                      child: Text(
+                        'Sign Up',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -126,6 +163,8 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
+
+
 
 class GiftBoxTransitionPage extends StatefulWidget {
   @override
@@ -164,11 +203,11 @@ class _GiftBoxTransitionPageState extends State<GiftBoxTransitionPage> with Sing
 
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        Future.delayed(Duration(milliseconds: 500), () {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => MainPage()),
-          );
-        });
+        // Future.delayed(Duration(milliseconds: 500), () {
+        //   Navigator.of(context).pushReplacement(
+        //     MaterialPageRoute(builder: (context) => MainPage()),
+        //   );
+        // });
       }
     });
   }

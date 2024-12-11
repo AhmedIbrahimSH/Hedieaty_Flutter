@@ -32,8 +32,8 @@ dependencies:
     sdk: flutter
   flutter_animate: ^4.5.1  # For animations
   table_calendar: ^3.0.9
-  cloud_firestore: ^4.17.5
-  firebase_auth: ^4.6.1
+  cloud_firestore: ^5.5.1
+  firebase_auth: ^5.3.4
   sqflite: ^2.0.0+4
   path_provider: ^2.0.10
   image_picker: ^0.8.7+3

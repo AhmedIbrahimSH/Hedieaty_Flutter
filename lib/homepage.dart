@@ -1,313 +1,183 @@
+import 'package:app/user_events.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:table_calendar/table_calendar.dart';
+import 'add_user_view.dart';
+import 'user_nots.dart';
 
-import 'EventListPage.dart';
-import 'db_utils.dart';
-import 'gifts_page.dart';
+class HomePage extends StatefulWidget {
+  final String currentUserMail;
 
-void main() {
-  runApp(MyApp());
+  HomePage({required this.currentUserMail});
+
+  @override
+  _HomePageState createState() => _HomePageState(currentUserMail);
 }
 
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: MainPage(),
-    );
+class _HomePageState extends State<HomePage> {
+  late Future<List<Map<String, dynamic>>> _friendsFuture;
+  String currentUserMail = "";
+
+  _HomePageState(String currentUserMail) {
+    this.currentUserMail = currentUserMail;
   }
-}
 
-class MainPage extends StatefulWidget {
-  @override
-  _MainPageState createState() => _MainPageState();
-}
+  Future<List<Map<String, dynamic>>> fetchFriends() async {
+    var snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.currentUserMail)
+        .collection('friendships')
+        .get();
 
-class _MainPageState extends State<MainPage> {
-  List<Map<String, dynamic>> people = [];
-  List<Map<String, dynamic>> filteredPeople = [];
-  TextEditingController searchController = TextEditingController();
-  String username = 'Mina George';
+    List<String> friendsMails = snapshot.docs
+        .map((doc) => doc['mail'] as String)
+        .toList();
+
+    if (friendsMails.isEmpty) {
+      return [];
+    }
+
+    var friendsSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .where('mail', whereIn: friendsMails)
+        .get();
+
+    return friendsSnapshot.docs
+        .map((doc) => doc.data() as Map<String, dynamic>)
+        .toList();
+  }
+
+  Future<int> getUnreadNotificationsCount() async {
+    var snapshot = await FirebaseFirestore.instance
+        .collection('notifications')
+        .where('receiver', isEqualTo: widget.currentUserMail)
+        .where('status', isEqualTo: 'pending') // only unread notifications
+        .get();
+
+    return snapshot.docs.length;
+  }
 
   @override
   void initState() {
     super.initState();
-    _initializeDatabase();
+    _friendsFuture = fetchFriends();
   }
 
-  void _initializeDatabase() async {
-    final db = await initializeDatabase();
-    List<Map<String, dynamic>> peopleList = await populateFriendsList(db, username);
+  void reloadFriends() {
     setState(() {
-      people = peopleList;
-      filteredPeople = peopleList;
+      _friendsFuture = fetchFriends();
     });
   }
 
-  Future<List<Map<String, dynamic>>> populateFriendsList(Database db, String username) async {
-    final userResult = await db.query('users', where: 'name = ?', whereArgs: [username]);
-
-    if (userResult.isEmpty) {
-      return [];
-    }
-
-    final userId = userResult.first['id'];
-
-    final friendIdsResult = await db.query('friendships', where: 'user_id = ?', whereArgs: [userId]);
-
-    List<int> friendIds = friendIdsResult.map((friendship) => friendship['friend_id'] as int).toList();
-
-    if (friendIds.isEmpty) {
-      return [];
-    }
-
-    List<Map<String, dynamic>> friendsList = [];
-    for (int friendId in friendIds) {
-      final friendDetails = await db.query('users', where: 'id = ?', whereArgs: [friendId]);
-
-      if (friendDetails.isNotEmpty) {
-        final friend = friendDetails.first;
-
-        final eventResults = await db.query(
-          'events',
-          where: 'user_id = ?',
-          whereArgs: [friendId],
-        );
-
-
-        Map<DateTime, List<String>> events = {};
-        for (var event in eventResults) {
-          final eventDate = DateTime.parse(event['event_date'] as String);
-          if (!events.containsKey(eventDate)) {
-            events[eventDate] = [];
-          }
-          events[eventDate]?.add(event['event_name'] as String);
-        }
-
-        print("events are $events");
-
-
-        friendsList.add({
-          'name': friend['name'],
-          'avatar': friend['avatar'],
-          'events': events,
-          'gifts': [],
-        });
-      }
-    }
-
-    return friendsList;
-  }
-
-
-  void _filterPeople(String query) {
-    setState(() {
-      filteredPeople = people
-          .where((person) => person['name']
-          .toLowerCase()
-          .contains(query.toLowerCase()))
-          .toList();
-    });
+  // Function to handle notification button click
+  void _onNotificationsClicked() {
+    print("Notifications clicked");
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NotificationsPage(currentmail: this.currentUserMail),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Your friends'),
+        title: Text('Home'),
         actions: [
-          IconButton(
-            icon: Icon(Icons.event),
+          // Notifications icon with count
+          FutureBuilder<int>(
+            future: getUnreadNotificationsCount(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return IconButton(
+                  icon: Icon(Icons.notifications),
+                  onPressed: _onNotificationsClicked,
+                );
+              }
 
-            onPressed: () async {
-              // Simulating fetching data from the database
-              // Navigate to the EventListPage
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => EventListPage(people: people),
+              int unreadCount = snapshot.data ?? 0;
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.notifications),
+                    onPressed: _onNotificationsClicked,
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: CircleAvatar(
+                        radius: 8,
+                        backgroundColor: Colors.red,
+                        child: Text(
+                          '$unreadCount',
+                          style: TextStyle(fontSize: 12, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: reloadFriends,
+          ),
+        ],
+      ),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _friendsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return Center(child: Text('No friends found.'));
+          }
+
+          var friends = snapshot.data!;
+
+          return ListView.builder(
+            itemCount: friends.length,
+            itemBuilder: (context, index) {
+              var friend = friends[index];
+              String friendMail = friend['mail'];
+
+              return ListTile(
+                subtitle: Text(friend['mail']),
+                trailing: IconButton(
+                  icon: Icon(Icons.event),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => EventPage(userMail: friendMail),
+                      ),
+                    );
+                  },
                 ),
               );
             },
-            tooltip: 'View All Events',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: searchController,
-              onChanged: _filterPeople,
-              decoration: InputDecoration(
-                hintText: "Search for your friend's list",
-                labelText: 'Search',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: filteredPeople.length,
-              itemBuilder: (context, index) {
-                return PersonRow(person: filteredPeople[index]);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class PersonRow extends StatelessWidget {
-  final Map<String, dynamic> person;
-
-  PersonRow({required this.person});
-
-  @override
-  Widget build(BuildContext context) {
-    final int upcomingEvents = person['events'].length;
-    return Card(
-      margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-      child: ListTile(
-        contentPadding: EdgeInsets.all(10.0),
-        leading: CircleAvatar(
-          backgroundImage: NetworkImage(person['avatar']!),
-        ),
-        title: Text(person['name']!),
-        trailing: GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => CalendarPage(
-                  name: person['name']!,
-                  events: person['events'],
-                ),
-              ),
-            );
-          },
-          child: Badge(
-            count: upcomingEvents,
-          ),
-        ),
-        subtitle: Text(
-          upcomingEvents > 0
-              ? "Upcoming Events: $upcomingEvents"
-              : "No Upcoming Events",
-        ),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => GiftListPage(person: person),
-            ),
           );
         },
       ),
-    );
-  }
-}
-
-class Badge extends StatelessWidget {
-  final int count;
-
-  Badge({required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(8.0),
-      decoration: BoxDecoration(
-        color: count > 0 ? Colors.red : Colors.grey,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        count > 0 ? count.toString() : "0",
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-}
-
-class CalendarPage extends StatefulWidget {
-  final String name;
-  final Map<DateTime, List<String>> events;
-
-  CalendarPage({required this.name, required this.events});
-
-  @override
-  _CalendarPageState createState() => _CalendarPageState();
-}
-
-class _CalendarPageState extends State<CalendarPage> {
-  DateTime _focusedDay = DateTime.now();
-  DateTime? _selectedDay;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text("Events for ${widget.name}")),
-      body: Column(
-        children: [
-          TableCalendar(
-            focusedDay: _focusedDay,
-            firstDay: DateTime(2020),
-            lastDay: DateTime(2030),
-            eventLoader: (day) {
-              final normalizedDay = DateTime(day.year, day.month, day.day);
-              return widget.events[normalizedDay] ?? [];
-            },
-            calendarStyle: CalendarStyle(
-              todayDecoration: BoxDecoration(
-                color: Colors.blue,
-                shape: BoxShape.circle,
-              ),
-              markerDecoration: BoxDecoration(
-                color: Colors.red,
-                shape: BoxShape.circle,
-              ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => UsersPage(currentmail: currentUserMail),
             ),
-            selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-            onDaySelected: (selectedDay, focusedDay) {
-              setState(() {
-                _selectedDay = selectedDay;
-                _focusedDay = focusedDay;
-              });
-
-              final normalizedDay = DateTime(selectedDay.year, selectedDay.month, selectedDay.day);
-              final events = widget.events[normalizedDay];
-
-              String displayMessage;
-
-              if (events != null && events.isNotEmpty) {
-                displayMessage = 'Events on ${selectedDay.toLocal()}: ${events.join(', ')}';
-              } else {
-                displayMessage = 'No events for ${selectedDay.toLocal()}';
-              }
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(displayMessage),
-                ),
-              );
-            },
-          ),
-          if (_selectedDay != null)
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                "Selected Day: ${_selectedDay!.toLocal()}",
-                style: TextStyle(fontSize: 16),
-              ),
-            ),
-        ],
+          );
+        },
+        child: Icon(Icons.person_add),
+        tooltip: 'Add Friend',
       ),
     );
   }
