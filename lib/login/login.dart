@@ -1,10 +1,10 @@
-import 'package:app/homepage.dart';
 import 'package:app/login/signup.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'dart:math';
 import '../firebase/fire_auth.dart';
+import '../homepage.dart';
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();  // Ensure Firebase is initialized before running the app.

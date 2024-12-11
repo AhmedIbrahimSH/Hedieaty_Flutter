@@ -1,6 +1,7 @@
 import 'package:app/user_events.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'add_event.dart';
 import 'add_user_view.dart';
 import 'user_nots.dart';
 
@@ -10,51 +11,11 @@ class HomePage extends StatefulWidget {
   HomePage({required this.currentUserMail});
 
   @override
-  _HomePageState createState() => _HomePageState(currentUserMail);
+  _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
   late Future<List<Map<String, dynamic>>> _friendsFuture;
-  String currentUserMail = "";
-
-  _HomePageState(String currentUserMail) {
-    this.currentUserMail = currentUserMail;
-  }
-
-  Future<List<Map<String, dynamic>>> fetchFriends() async {
-    var snapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(widget.currentUserMail)
-        .collection('friendships')
-        .get();
-
-    List<String> friendsMails = snapshot.docs
-        .map((doc) => doc['mail'] as String)
-        .toList();
-
-    if (friendsMails.isEmpty) {
-      return [];
-    }
-
-    var friendsSnapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .where('mail', whereIn: friendsMails)
-        .get();
-
-    return friendsSnapshot.docs
-        .map((doc) => doc.data() as Map<String, dynamic>)
-        .toList();
-  }
-
-  Future<int> getUnreadNotificationsCount() async {
-    var snapshot = await FirebaseFirestore.instance
-        .collection('notifications')
-        .where('receiver', isEqualTo: widget.currentUserMail)
-        .where('status', isEqualTo: 'pending') // only unread notifications
-        .get();
-
-    return snapshot.docs.length;
-  }
 
   @override
   void initState() {
@@ -62,6 +23,52 @@ class _HomePageState extends State<HomePage> {
     _friendsFuture = fetchFriends();
   }
 
+  // Function to fetch friends of the current user
+  Future<List<Map<String, dynamic>>> fetchFriends() async {
+    try {
+      var snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.currentUserMail)
+          .collection('friendships')
+          .get();
+
+      List<String> friendsMails = snapshot.docs
+          .map((doc) => doc['mail'] as String)
+          .toList();
+
+      if (friendsMails.isEmpty) {
+        return [];
+      }
+
+      var friendsSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('mail', whereIn: friendsMails)
+          .get();
+
+      return friendsSnapshot.docs
+          .map((doc) => doc.data() as Map<String, dynamic>)
+          .toList();
+    } catch (e) {
+      throw Exception("Error fetching friends: $e");
+    }
+  }
+
+  // Function to get the count of unread notifications
+  Future<int> getUnreadNotificationsCount() async {
+    try {
+      var snapshot = await FirebaseFirestore.instance
+          .collection('notifications')
+          .where('receiver', isEqualTo: widget.currentUserMail)
+          .where('status', isEqualTo: 'pending') // only unread notifications
+          .get();
+
+      return snapshot.docs.length;
+    } catch (e) {
+      return 0; // In case of an error, return 0 unread notifications
+    }
+  }
+
+  // Function to reload friends list
   void reloadFriends() {
     setState(() {
       _friendsFuture = fetchFriends();
@@ -70,11 +77,10 @@ class _HomePageState extends State<HomePage> {
 
   // Function to handle notification button click
   void _onNotificationsClicked() {
-    print("Notifications clicked");
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => NotificationsPage(currentmail: this.currentUserMail),
+        builder: (context) => NotificationsPage(currentmail: widget.currentUserMail),
       ),
     );
   }
@@ -120,12 +126,26 @@ class _HomePageState extends State<HomePage> {
               );
             },
           ),
+          // Refresh button
           IconButton(
             icon: Icon(Icons.refresh),
             onPressed: reloadFriends,
           ),
+          // Add Event button
+          IconButton(
+            icon: Icon(Icons.event),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CalendarPage(currentUserMail: widget.currentUserMail),
+                ),
+              );
+            },
+          ),
         ],
       ),
+
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _friendsFuture,
         builder: (context, snapshot) {
@@ -172,7 +192,7 @@ class _HomePageState extends State<HomePage> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => UsersPage(currentmail: currentUserMail),
+              builder: (context) => UsersPage(currentmail: widget.currentUserMail),
             ),
           );
         },
