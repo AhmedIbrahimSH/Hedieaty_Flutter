@@ -1,4 +1,5 @@
 import 'package:app/user_events.dart';
+import 'package:app/user_profile.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'add_event.dart';
@@ -139,6 +140,18 @@ class _HomePageState extends State<HomePage> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => CalendarPage(currentUserMail: widget.currentUserMail),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.person),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ProfilePage(currentUserMail: widget.currentUserMail,
+                  ),
                 ),
               );
             },
