@@ -1,4 +1,4 @@
-import 'package:app/user_events.dart';
+import 'package:app/friends_events.dart';
 import 'package:app/user_profile.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
