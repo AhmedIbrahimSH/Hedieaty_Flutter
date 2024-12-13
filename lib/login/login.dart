@@ -7,7 +7,7 @@ import '../firebase/fire_auth.dart';
 import '../homepage.dart';
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();  // Ensure Firebase is initialized before running the app.
+  await Firebase.initializeApp();
   // AuthService.init_firebase();
   runApp(MyApp());
 }
@@ -40,14 +40,14 @@ class _LoginPageState extends State<LoginPage> {
 
   bool login_check(user_mail, user_password) {
     try {
-      print("Email: $user_mail, Password: $user_password"); // Debug log
+      print("Email: $user_mail, Password: $user_password");
       var user_creds = _user_auth.authenticateUser(user_mail, user_password);
       if (user_creds != null) {
         print("Authentication successful: ${user_creds}");
-        return true;  // Success
+        return true;
       } else {
         print("Authentication failed: Invalid credentials");
-        return false;  // Failure
+        return false;
       }
     }
     on FirebaseAuthException catch (e) {

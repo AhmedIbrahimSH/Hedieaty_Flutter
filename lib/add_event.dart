@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';  // Import the intl package
+import 'package:intl/intl.dart'; // Import the intl package
 
 class CalendarPage extends StatefulWidget {
   final String currentUserMail;
@@ -32,7 +32,15 @@ class _CalendarPageState extends State<CalendarPage> {
         'date': formattedDate, // Store the date in 'yyyy-MM-dd' format
       });
 
-      // Go back to the home page after saving the event
+      // Show a success message as a SnackBar
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Event added successfully!'),
+          duration: Duration(seconds: 5),
+        ),
+      );
+
+      // Go back to the homepage
       Navigator.pop(context);
     } catch (e) {
       // Handle error
@@ -45,7 +53,7 @@ class _CalendarPageState extends State<CalendarPage> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime.now(),  // Minimum date is today
+      firstDate: DateTime.now(), // Minimum date is today
       lastDate: DateTime(2101),
     );
 
@@ -68,13 +76,16 @@ class _CalendarPageState extends State<CalendarPage> {
           children: [
             TextField(
               controller: _eventNameController,
-              decoration: InputDecoration(labelText: 'Event Name'),
+              decoration: InputDecoration(
+                labelText: 'Event Name',
+                prefixIcon: Icon(Icons.event), // Added icon beside the text field
+              ),
             ),
             SizedBox(height: 20),
             Row(
               children: [
                 Text(
-                  "Event Date: ${DateFormat('yyyy-MM-dd').format(_selectedDate)}",  // Display date in 'yyyy-MM-dd' format
+                  "Event Date: ${DateFormat('yyyy-MM-dd').format(_selectedDate)}", // Display date in 'yyyy-MM-dd' format
                   style: TextStyle(fontSize: 16),
                 ),
                 IconButton(

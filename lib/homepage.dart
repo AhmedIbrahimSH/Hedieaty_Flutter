@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'add_event.dart';
 import 'add_user_view.dart';
+import 'events/list_user_events.dart';
 import 'user_nots.dart';
 
 class HomePage extends StatefulWidget {
@@ -24,7 +25,6 @@ class _HomePageState extends State<HomePage> {
     _friendsFuture = fetchFriends();
   }
 
-  // Function to fetch friends of the current user
   Future<List<Map<String, dynamic>>> fetchFriends() async {
     try {
       var snapshot = await FirebaseFirestore.instance
@@ -86,11 +86,78 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // Method to show confirmation dialog
+  Future<bool> _showConfirmationDialog(BuildContext context) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Confirm Delete', style: TextStyle(color: Colors.red)),
+          content: Text('Are you sure you want to remove this friend?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(false); // No
+              },
+              child: Text('Cancel', style: TextStyle(color: Colors.blue)),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(true); // Yes
+              },
+              child: Text('Yes', style: TextStyle(color: Colors.green)),
+            ),
+          ],
+        );
+      },
+    ) ??
+        false; // In case the dialog is closed without a selection, return false.
+  }
+
+  Future<int> getUpcomingEventsCount(String friendMail) async {
+    try {
+      // Get today's date as a string in the same format as stored in the database
+      var today = DateTime.now();
+      String todayString = "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+
+      // Query the events subcollection with a string comparison
+      var snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('mail', isEqualTo: friendMail)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        return 0; // No user found with this email
+      }
+
+      // Assume there is only one user with this email
+      var userDocId = snapshot.docs.first.id;
+
+      var eventsSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userDocId)
+          .collection('events')
+          .where('date', isGreaterThanOrEqualTo: todayString)
+          .get();
+
+      return eventsSnapshot.docs.length;
+    } catch (e) {
+      return 0; // Return 0 if there are errors
+    }
+  }
+
+
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Home'),
+        title: Padding(
+          padding: const EdgeInsets.only(left: 8.0),
+          child: Text('Home', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        backgroundColor: Colors.teal,
         actions: [
           // Notifications icon with count
           FutureBuilder<int>(
@@ -127,12 +194,10 @@ class _HomePageState extends State<HomePage> {
               );
             },
           ),
-          // Refresh button
           IconButton(
             icon: Icon(Icons.refresh),
             onPressed: reloadFriends,
           ),
-          // Add Event button
           IconButton(
             icon: Icon(Icons.event),
             onPressed: () {
@@ -145,13 +210,12 @@ class _HomePageState extends State<HomePage> {
             },
           ),
           IconButton(
-            icon: Icon(Icons.person),
+            icon: Icon(Icons.person, color: Colors.white),
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ProfilePage(currentUserMail: widget.currentUserMail,
-                  ),
+                  builder: (context) => ProfilePage(currentUserMail: widget.currentUserMail),
                 ),
               );
             },
@@ -159,59 +223,147 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
 
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _friendsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          }
+      body: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: FutureBuilder<List<Map<String, dynamic>>>(
+          future: _friendsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            }
 
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
 
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(child: Text('No friends found.'));
-          }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return Center(child: Text('No friends found.'));
+            }
 
-          var friends = snapshot.data!;
+            var friends = snapshot.data!;
 
-          return ListView.builder(
-            itemCount: friends.length,
-            itemBuilder: (context, index) {
-              var friend = friends[index];
-              String friendMail = friend['mail'];
+            return ListView.builder(
+              itemCount: friends.length,
+              itemBuilder: (context, index) {
+                var friend = friends[index];
+                String friendMail = friend['mail'];
 
-              return ListTile(
-                subtitle: Text(friend['mail']),
-                trailing: IconButton(
-                  icon: Icon(Icons.event),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => EventPage(userMail: friendMail),
-                      ),
-                    );
-                  },
+                return Card(
+                  elevation: 5,
+                  margin: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: ListTile(
+                    contentPadding: EdgeInsets.all(16),
+                    title: Text(friend['mail'], style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(friend['mail']),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        FutureBuilder<int>(
+                          future: getUpcomingEventsCount(friendMail),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return CircularProgressIndicator();
+                            }
+
+                            int eventCount = snapshot.data ?? 0;
+
+                            return GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => EventPage(userMail: friendMail),
+                                  ),
+                                );
+                              },
+                              child: CircleAvatar(
+                                radius: 16,
+                                backgroundColor: Colors.teal,
+                                child: Text(
+                                  '$eventCount',
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.remove_circle),
+                          onPressed: () async {
+                            try {
+                              // Remove the friend from the current user's "friendships" collection
+                              await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(widget.currentUserMail)
+                                  .collection('friendships')
+                                  .doc(friendMail)
+                                  .delete();
+
+                              // Remove the current user from the friend's "friendships" collection
+                              await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(friendMail)
+                                  .collection('friendships')
+                                  .doc(widget.currentUserMail)
+                                  .delete();
+
+                              // Optionally, reload the friends list to reflect the changes
+                              reloadFriends();
+                            } catch (e) {
+                              // Handle any errors that occur while removing the friend
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("Error removing friend: $e")),
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Button to show current user's events
+          FloatingActionButton(
+            heroTag: 'userEvents',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => EventsPage(currentUserMail: widget.currentUserMail),
                 ),
               );
             },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => UsersPage(currentmail: widget.currentUserMail),
-            ),
-          );
-        },
-        child: Icon(Icons.person_add),
-        tooltip: 'Add Friend',
+            child: Icon(Icons.event_note),
+            backgroundColor: Colors.blue,
+            tooltip: 'My Events',
+          ),
+          SizedBox(height: 10), // Space between buttons
+          // Existing button to add friends
+          FloatingActionButton(
+            heroTag: 'addFriend',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => UsersPage(currentmail: widget.currentUserMail),
+                ),
+              );
+            },
+            child: Icon(Icons.add),
+            backgroundColor: Colors.teal,
+            tooltip: 'Add Friend',
+          ),
+        ],
       ),
     );
   }
+
 }
