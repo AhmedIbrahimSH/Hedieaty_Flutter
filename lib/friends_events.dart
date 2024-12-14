@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -6,15 +7,18 @@ import 'gift_details.dart';
 
 class EventPage extends StatefulWidget {
   final String? userMail;
+  final String? current_logged_mail;
 
-  const EventPage({Key? key, required this.userMail}) : super(key: key);
+  const EventPage({Key? key, required this.current_logged_mail ,  required this.userMail}) : super(key: key);
 
   @override
-  _EventPageState createState() => _EventPageState();
+  _EventPageState createState() => _EventPageState(current_logged_mail: this.current_logged_mail);
 }
 
 class _EventPageState extends State<EventPage> {
   late Future<Map<DateTime, List<Map<String, dynamic>>>> _eventsFuture;
+  final String? current_logged_mail;
+  _EventPageState({required this.current_logged_mail});
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
@@ -103,7 +107,7 @@ class _EventPageState extends State<EventPage> {
         return Column(
           children: gifts.map((gift) {
 
-            return _GiftTile(gift: gift);
+            return _GiftTile(gift: gift, current_logged_mail: this.current_logged_mail,);
           }).toList(),
         );
       },
@@ -217,16 +221,17 @@ class _EventPageState extends State<EventPage> {
 
 class _GiftTile extends StatefulWidget {
   final Map<String, dynamic> gift;
-
-  const _GiftTile({Key? key, required this.gift}) : super(key: key);
+  final String? current_logged_mail;
+  const _GiftTile({Key? key, required this.current_logged_mail , required this.gift}) : super(key: key);
 
   @override
-  __GiftTileState createState() => __GiftTileState();
+  __GiftTileState createState() => __GiftTileState(current_logged_mail: this.current_logged_mail);
 }
 
 class __GiftTileState extends State<_GiftTile> {
   bool isPledged = false;
-
+  final String? current_logged_mail;
+  __GiftTileState({required this.current_logged_mail});
   void _handlePledge() async {
     bool? isConfirmed = await showDialog<bool>(
       context: context,
@@ -237,13 +242,13 @@ class __GiftTileState extends State<_GiftTile> {
           actions: <Widget>[
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(false);
+                Navigator.of(context).pop(false); // User pressed "No"
               },
               child: Text('No'),
             ),
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(true);
+                Navigator.of(context).pop(true); // User pressed "Yes"
               },
               child: Text('Yes'),
             ),
@@ -254,12 +259,27 @@ class __GiftTileState extends State<_GiftTile> {
 
     if (isConfirmed == true) {
       setState(() {
-        isPledged = true;
+        isPledged = true; // Change the icon to indicate the gift has been pledged
       });
 
-      print("Gift pledged: ${widget.gift['gift_name']}");
+        // Add the pledged gift to Firestore under the user's pledged_gifts collection
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(current_logged_mail)
+            .collection('pledged_gifts')
+            .add({
+          'gift_owner': current_logged_mail,
+          'gift_name': widget.gift['gift_name'],
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('You have pledged the gift: ${widget.gift['gift_name']}'),
+        ));
+
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

@@ -82,6 +82,88 @@ class _EventListingPageState extends State<EventListingPage> {
     );
   }
 
+  // Add gift
+  void addGift(String eventId) async {
+    TextEditingController giftNameController = TextEditingController();
+    TextEditingController priceController = TextEditingController();
+    TextEditingController linkController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Add Gift'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: giftNameController,
+                decoration: InputDecoration(labelText: 'Gift Name'),
+              ),
+              TextField(
+                controller: priceController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(labelText: 'Price'),
+              ),
+              TextField(
+                controller: linkController,
+                decoration: InputDecoration(labelText: 'Link (Optional)'),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () async {
+                String giftName = giftNameController.text;
+                String priceText = priceController.text;
+                String? link = linkController.text.isNotEmpty ? linkController.text : null;
+
+                if (giftName.isEmpty || priceText.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('Gift name and price are required!'),
+                  ));
+                  return;
+                }
+
+                double? price = double.tryParse(priceText);
+                if (price == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('Price must be a valid number!'),
+                  ));
+                  return;
+                }
+
+                // Add gift to Firestore
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(widget.currentUserMail)
+                    .collection('events')
+                    .doc(eventId)
+                    .collection('gifts')
+                    .add({
+                  'name': giftName,
+                  'owner': widget.currentUserMail,
+                  'price': price,
+                  'link': link,
+                  'status': 'wanted',
+                });
+
+                Navigator.pop(context);
+              },
+              child: Text('Save Gift'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -118,6 +200,10 @@ class _EventListingPageState extends State<EventListingPage> {
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      IconButton(
+                        icon: Icon(Icons.add_circle),
+                        onPressed: () => addGift(eventId),
+                      ),
                       IconButton(
                         icon: Icon(Icons.edit),
                         onPressed: () => editEvent(eventId, eventName),

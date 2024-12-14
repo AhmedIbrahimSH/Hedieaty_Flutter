@@ -13,12 +13,13 @@ class HomePage extends StatefulWidget {
   HomePage({required this.currentUserMail});
 
   @override
-  _HomePageState createState() => _HomePageState();
+  _HomePageState createState() => _HomePageState(currentUserMail: this.currentUserMail);
 }
 
 class _HomePageState extends State<HomePage> {
   late Future<List<Map<String, dynamic>>> _friendsFuture;
-
+  final String? currentUserMail;
+  _HomePageState({required this.currentUserMail});
   @override
   void initState() {
     super.initState();
@@ -86,7 +87,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Method to show confirmation dialog
   Future<bool> _showConfirmationDialog(BuildContext context) async {
     return await showDialog<bool>(
       context: context,
@@ -204,7 +204,8 @@ class _HomePageState extends State<HomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => CalendarPage(currentUserMail: widget.currentUserMail),
+
+                  builder: (context) =>  EventsPage(currentUserMail: widget.currentUserMail),
                 ),
               );
             },
@@ -272,7 +273,7 @@ class _HomePageState extends State<HomePage> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => EventPage(userMail: friendMail),
+                                    builder: (context) => EventPage(userMail: friendMail , current_logged_mail: currentUserMail),
                                   ),
                                 );
                               },
@@ -337,7 +338,7 @@ class _HomePageState extends State<HomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => EventsPage(currentUserMail: widget.currentUserMail),
+                  builder: (context) => CalendarPage(currentUserMail: widget.currentUserMail)
                 ),
               );
             },
