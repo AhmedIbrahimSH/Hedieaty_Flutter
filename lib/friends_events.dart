@@ -239,7 +239,7 @@ class __GiftTileState extends State<_GiftTile> {
   String usermail;
   __GiftTileState({required this.current_logged_mail , required this.event_date , required this.usermail});
 
-  void pledgeGift(String buyerMail, String receiverMail) async {
+  void pledgeGift(String buyerMail, String receiverMail , String gift_name) async {
     try {
       // Add the pledge to the 'notifications' collection
       await FirebaseFirestore.instance.collection('notifications').add({
@@ -247,6 +247,8 @@ class __GiftTileState extends State<_GiftTile> {
         'pledgerer': receiverMail,
         'status': 'pending',  // Assuming this status means unread
         'timestamp': FieldValue.serverTimestamp(),  // For sorting notifications by time
+        'type': 'pledge',
+        'gift_name':gift_name ,
       });
 
       // Search through the 'events' and 'gifts' collections to find the gift
@@ -343,7 +345,7 @@ class __GiftTileState extends State<_GiftTile> {
       });
 
       // Call the pledgeGift function to update the status in Firestore
-      pledgeGift(usermail, current_logged_mail);
+      pledgeGift(usermail, current_logged_mail , widget.gift['gift_name']);
 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('You have pledged the gift: ${widget.gift['gift_name']}'),

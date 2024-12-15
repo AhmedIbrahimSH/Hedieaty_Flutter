@@ -7,19 +7,20 @@ class NotificationsPage extends StatefulWidget {
   NotificationsPage({required this.currentmail});
 
   @override
-  _NotificationsPageState createState() => _NotificationsPageState();
+  _NotificationsPageState createState() => _NotificationsPageState(currentmail: this.currentmail);
 }
 
 class _NotificationsPageState extends State<NotificationsPage> {
   late Stream<QuerySnapshot> notificationsStream;
-
+  String currentmail;
+  _NotificationsPageState({required this.currentmail});
   @override
   void initState() {
     super.initState();
     notificationsStream = FirebaseFirestore.instance
         .collection('notifications')
-        .where('receiver', isEqualTo: widget.currentmail)
         .snapshots();
+
   }
 
   @override
@@ -48,33 +49,67 @@ class _NotificationsPageState extends State<NotificationsPage> {
             itemCount: notifications.length,
             itemBuilder: (context, index) {
               var notification = notifications[index];
-              String sender = notification['sender'];
-              String status = notification['status'];
+              String type = notification['type'];
 
-              return Card(
-                margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-                child: ListTile(
-                  contentPadding: EdgeInsets.all(10.0),
-                  title: Text('Friend request from $sender'),
-                  subtitle: Text('Status: $status'),
-                  trailing: status == 'pending'
-                      ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ElevatedButton(
-                        onPressed: () => acceptRequest(notification.id, sender),
-                        child: Text('Accept'),
-                      ),
-                      SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () => rejectRequest(notification.id),
-                        child: Text('Reject'),
-                      ),
-                    ],
-                  )
-                      : null,
-                ),
-              );
+              // For "friend_request" notifications
+              if (type == 'frequest' && notification['receiver'] == this.currentmail) {
+                String sender = notification['sender'];
+                String status = notification['status'];
+
+                return Card(
+                  margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                  child: ListTile(
+                    contentPadding: EdgeInsets.all(10.0),
+                    title: Text('Friend request from $sender'),
+                    subtitle: Text('Status: $status'),
+                    trailing: status == 'pending'
+                        ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () => acceptRequest(notification.id, sender),
+                          child: Text('Accept'),
+                        ),
+                        SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () => rejectRequest(notification.id),
+                          child: Text('Reject'),
+                        ),
+                      ],
+                    )
+                        : null,
+                  ),
+                );
+              }
+
+              // For "pledging" notifications
+              if (type == 'pledge' && notification['pledgerer'] == this.currentmail) {
+
+                String buyer = notification['buyer'];
+                String pledger = notification['pledgerer'];
+                String status = notification['status'];
+                String gift_name = notification['gift_name'];
+                // Update the status to 'seen' if it's not already 'seen'
+                if (status != 'seen') {
+                  FirebaseFirestore.instance
+                      .collection('notifications')
+                      .doc(notification.id)
+                      .update({'status': 'seen'}).catchError((e) {
+                    print('Error updating status to seen: $e');
+                  });
+                }
+                print(buyer);
+                return Card(
+                  margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                  child: ListTile(
+                    contentPadding: EdgeInsets.all(10.0),
+                    title: Text('$buyer promised to get you the gift : ${gift_name}'),
+                    subtitle: Text('Buyer: $buyer\nStatus: $status'),
+                  ),
+                );
+              }
+
+              return SizedBox(); // Default return in case of unsupported notification type
             },
           );
         },
@@ -112,6 +147,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         'receiver': senderMail,
         'status': 'accepted',
         'timestamp': FieldValue.serverTimestamp(),
+        'type': 'frequest',
       });
 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(

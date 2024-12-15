@@ -121,7 +121,7 @@ class _FriendsEventsPageState extends State<FriendsEventsPage> {
 class Event {
   final String name;
   final String date;
-  late String friendMail;  // Field to store the friend's email
+  late String friendMail;
 
   Event({required this.name, required this.date});
 

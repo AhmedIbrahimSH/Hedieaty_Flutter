@@ -4,19 +4,24 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:app/local_database/local_sql_init.dart';
+
 
 class EventsPage extends StatefulWidget {
   final String currentUserMail;
-
-  EventsPage({required this.currentUserMail});
+  LocalDatabase localdb;
+  EventsPage({required this.currentUserMail, required this.localdb});
 
   @override
-  _EventsPageState createState() => _EventsPageState();
+  _EventsPageState createState() => _EventsPageState(localdb:this.localdb);
 }
 
 class _EventsPageState extends State<EventsPage> {
   late Stream<QuerySnapshot> _eventsStream;
-
+  LocalDatabase localdb;
+  bool isButtonVisible = true;
+  bool isButtonPressed = false;
+  _EventsPageState({required this.localdb});
   @override
   void initState() {
     super.initState();
@@ -79,6 +84,8 @@ class _EventsPageState extends State<EventsPage> {
       }
     }
   }
+
+
 
   Future<void> addGift(String eventId) async {
     TextEditingController giftNameController = TextEditingController();
@@ -244,14 +251,14 @@ class _EventsPageState extends State<EventsPage> {
       appBar: AppBar(
         title: Text('My Events'),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _eventsStream,
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: localdb.getEventsForUser(widget.currentUserMail),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
           }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return Center(
               child: Text(
                 'No events found!',
@@ -260,55 +267,87 @@ class _EventsPageState extends State<EventsPage> {
             );
           }
 
-          final events = snapshot.data!.docs;
+          final events = snapshot.data!;
 
-          return SingleChildScrollView(
-            child: Column(
-              children: events.map((event) {
-                final eventName = event['name'];
-                final eventDate = event['date'];
-                final eventId = event.id;
+          return Scrollbar(
+            child: SingleChildScrollView(
+              child: Column(
+                children: events.map((event) {
+                  final eventName = event['name'];
+                  final eventDate = event['date'];
+                  final eventId = event['name'];
 
-                return Card(
-                  margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  elevation: 5,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: ListTile(
-                      title: Text(
-                        eventName,
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(
-                        'Date: ${formatDate(eventDate)}',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isUpcoming(eventDate))
-                            IconButton(
-                              icon: Icon(Icons.add_card),
-                              onPressed: () {
-                                addGift(eventId);
+                  return Card(
+                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    elevation: 5,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: ListTile(
+                        title: Text(
+                          eventName,
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          'Date: ${formatDate(eventDate)}',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isUpcoming(eventDate))
+                              AnimatedOpacity(
+                                opacity: isButtonVisible ? 1.0 : 0.0,
+                                duration: Duration(milliseconds: 500),
+                                child: IconButton(
+                                  icon: Icon(Icons.add_card),
+                                  onPressed: () {
+                                    addGift(eventId);
+                                  },
+                                ),
+                              ),
+                            if (isUpcoming(eventDate))
+                              IconButton(
+                                icon: Icon(Icons.delete, color: Colors.red),
+                                onPressed: () {
+                                  deleteEvent(eventId);
+                                },
+                              ),
+
+                            FutureBuilder<bool>(
+                              future: this.localdb.isEventInFirebase(widget.currentUserMail, eventName),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState == ConnectionState.waiting) {
+                                  return CircularProgressIndicator();  // Show a loading indicator while waiting
+                                } else if (snapshot.hasData && snapshot.data == false && !isButtonPressed) {
+                                  return AnimatedOpacity(
+                                    opacity: isButtonVisible ? 1.0 : 0.0,
+                                    duration: Duration(milliseconds: 500),
+                                    child: IconButton(
+                                      icon: Icon(Icons.cloud_upload),
+                                      onPressed: () async {
+                                        await this.localdb.insertEventToFirebase(widget.currentUserMail, eventName, eventDate);
+                                        setState(() {
+                                          isButtonPressed = true;  // Hide the button after pressing
+                                        });
+                                      },
+                                    ),
+                                  );
+                                } else {
+                                  return Container();  // No button if the event is already in Firebase or if button was pressed
+                                }
                               },
                             ),
-                          if (isUpcoming(eventDate))
-                            IconButton(
-                              icon: Icon(Icons.delete, color: Colors.red),
-                              onPressed: () {
-                                deleteEvent(eventId);
-                              },
-                            ),
-                        ],
+
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                );
-              }).toList(),
+                  );
+                }).toList(),
+              ),
             ),
           );
         },
@@ -316,3 +355,4 @@ class _EventsPageState extends State<EventsPage> {
     );
   }
 }
+

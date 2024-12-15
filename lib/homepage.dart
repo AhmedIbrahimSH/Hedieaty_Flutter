@@ -1,4 +1,5 @@
 import 'package:app/friends_events.dart';
+import 'package:app/local_database/local_sql_init.dart';
 import 'package:app/user_profile.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -11,17 +12,19 @@ import 'user_nots.dart';
 
 class HomePage extends StatefulWidget {
   final String currentUserMail;
+  LocalDatabase localdb;
 
-  HomePage({required this.currentUserMail});
+  HomePage({required this.currentUserMail , required this.localdb});
 
   @override
-  _HomePageState createState() => _HomePageState(currentUserMail: this.currentUserMail);
+  _HomePageState createState() => _HomePageState(currentUserMail: this.currentUserMail , localdb: localdb);
 }
 
 class _HomePageState extends State<HomePage> {
   late Future<List<Map<String, dynamic>>> _friendsFuture;
   final String currentUserMail;
-  _HomePageState({required this.currentUserMail});
+  LocalDatabase localdb;
+  _HomePageState({required this.currentUserMail , required this.localdb});
   @override
   void initState() {
     super.initState();
@@ -57,18 +60,14 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<int> getUnreadNotificationsCount() async {
-    try {
-      var snapshot = await FirebaseFirestore.instance
-          .collection('notifications')
-          .where('receiver', isEqualTo: widget.currentUserMail)
-          .where('status', isEqualTo: 'pending') // only unread notifications
-          .get();
-
-      return snapshot.docs.length;
-    } catch (e) {
-      return 0; // In case of an error, return 0 unread notifications
-    }
+  // Stream for real-time updates on unread notifications count
+  Stream<int> getUnreadNotificationsStream() {
+    return FirebaseFirestore.instance
+        .collection('notifications')
+        .where('pledgerer', isEqualTo: widget.currentUserMail)
+        .where('status', isEqualTo: 'pending') // only unread notifications
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
   }
 
   // Function to reload friends list
@@ -161,40 +160,41 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Colors.teal,
         actions: [
           // Notifications icon with count
-          FutureBuilder<int>(
-            future: getUnreadNotificationsCount(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return IconButton(
-                  icon: Icon(Icons.notifications),
-                  onPressed: _onNotificationsClicked,
-                );
-              }
+      StreamBuilder<int>(
+      stream: getUnreadNotificationsStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return IconButton(
+            icon: Icon(Icons.notifications),
+            onPressed: _onNotificationsClicked,
+          );
+        }
 
-              int unreadCount = snapshot.data ?? 0;
-              return Stack(
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.notifications),
-                    onPressed: _onNotificationsClicked,
+        int unreadCount = snapshot.data ?? 0;
+
+        return Stack(
+          children: [
+            IconButton(
+              icon: Icon(Icons.notifications),
+              onPressed: _onNotificationsClicked,
+            ),
+            if (unreadCount > 0)
+              Positioned(
+                right: 0,
+                top: 0,
+                child: CircleAvatar(
+                  radius: 8,
+                  backgroundColor: Colors.red,
+                  child: Text(
+                    '$unreadCount',
+                    style: TextStyle(fontSize: 12, color: Colors.white),
                   ),
-                  if (unreadCount > 0)
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      child: CircleAvatar(
-                        radius: 8,
-                        backgroundColor: Colors.red,
-                        child: Text(
-                          '$unreadCount',
-                          style: TextStyle(fontSize: 12, color: Colors.white),
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
+                ),
+              ),
+          ],
+        );
+      },
+    ),
           IconButton(
             icon: Icon(Icons.refresh),
             onPressed: reloadFriends,
@@ -231,7 +231,7 @@ class _HomePageState extends State<HomePage> {
                 context,
                 MaterialPageRoute(
 
-                  builder: (context) =>  EventsPage(currentUserMail: widget.currentUserMail),
+                  builder: (context) =>  EventsPage(currentUserMail: widget.currentUserMail, localdb: this.localdb),
                 ),
               );
             },
@@ -364,7 +364,7 @@ class _HomePageState extends State<HomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => CalendarPage(currentUserMail: widget.currentUserMail)
+                    builder: (context) => CalendarPage(currentUserMail: widget.currentUserMail, localdb: this.localdb)
                 ),
               );
             },

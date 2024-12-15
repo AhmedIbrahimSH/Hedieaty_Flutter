@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'dart:math';
 import '../firebase/fire_auth.dart';
 import '../homepage.dart';
+import '../local_database/local_sql_init.dart';
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
@@ -112,12 +113,13 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     SizedBox(height: 20),
                     ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
+                        var db = await init_local_db(_emailController.text);
                         if (login_check(_emailController.text, _passwordController.text)) {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => HomePage(currentUserMail: _emailController.text),
+                              builder: (context) => HomePage(currentUserMail: _emailController.text , localdb: db),
                             ),
                           );
                         }
