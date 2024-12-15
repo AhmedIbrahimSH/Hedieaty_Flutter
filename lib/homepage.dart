@@ -4,7 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'add_event.dart';
 import 'add_user_view.dart';
+import 'current_logged_user/pledged_gifts.dart';
 import 'events/list_user_events.dart';
+import 'listed_friends_events.dart';
 import 'user_nots.dart';
 
 class HomePage extends StatefulWidget {
@@ -18,7 +20,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late Future<List<Map<String, dynamic>>> _friendsFuture;
-  final String? currentUserMail;
+  final String currentUserMail;
   _HomePageState({required this.currentUserMail});
   @override
   void initState() {
@@ -55,7 +57,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Function to get the count of unread notifications
   Future<int> getUnreadNotificationsCount() async {
     try {
       var snapshot = await FirebaseFirestore.instance
@@ -199,6 +200,31 @@ class _HomePageState extends State<HomePage> {
             onPressed: reloadFriends,
           ),
           IconButton(
+            icon: Icon(Icons.generating_tokens),
+            onPressed: (){
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+
+                  builder: (context) =>  FriendsEventsPage(userMail: widget.currentUserMail),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.card_giftcard_sharp),
+            onPressed: (){
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+
+                  builder: (context) =>  PledgedGiftsPage(currentUserMail: widget.currentUserMail),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: Icon(Icons.event),
             onPressed: () {
               Navigator.push(
@@ -338,7 +364,7 @@ class _HomePageState extends State<HomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => CalendarPage(currentUserMail: widget.currentUserMail)
+                    builder: (context) => CalendarPage(currentUserMail: widget.currentUserMail)
                 ),
               );
             },

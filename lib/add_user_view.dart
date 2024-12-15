@@ -131,6 +131,7 @@ class UsersPage extends StatelessWidget {
         'receiver': userMail,
         'status': 'pending', // 'pending' until the receiver accepts
         'timestamp': FieldValue.serverTimestamp(),
+        'type': 'frequest'
       });
 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(

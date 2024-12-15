@@ -4,21 +4,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'gift_details.dart';
+import 'package:intl/intl.dart';
 
 class EventPage extends StatefulWidget {
-  final String? userMail;
-  final String? current_logged_mail;
+  final String userMail;
+  final String current_logged_mail;
 
   const EventPage({Key? key, required this.current_logged_mail ,  required this.userMail}) : super(key: key);
 
   @override
-  _EventPageState createState() => _EventPageState(current_logged_mail: this.current_logged_mail);
+  _EventPageState createState() => _EventPageState(current_logged_mail: this.current_logged_mail , usermail: this.userMail);
 }
 
 class _EventPageState extends State<EventPage> {
   late Future<Map<DateTime, List<Map<String, dynamic>>>> _eventsFuture;
-  final String? current_logged_mail;
-  _EventPageState({required this.current_logged_mail});
+  final String current_logged_mail;
+  String usermail;
+  _EventPageState({required this.current_logged_mail , required this.usermail});
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
@@ -107,7 +109,7 @@ class _EventPageState extends State<EventPage> {
         return Column(
           children: gifts.map((gift) {
 
-            return _GiftTile(gift: gift, current_logged_mail: this.current_logged_mail,);
+            return _GiftTile(gift: gift, current_logged_mail: this.current_logged_mail, event_date: DateFormat('yyyy-MM-dd').format(_selectedDay!) , usermail: this.usermail,);
           }).toList(),
         );
       },
@@ -221,17 +223,95 @@ class _EventPageState extends State<EventPage> {
 
 class _GiftTile extends StatefulWidget {
   final Map<String, dynamic> gift;
-  final String? current_logged_mail;
-  const _GiftTile({Key? key, required this.current_logged_mail , required this.gift}) : super(key: key);
+  final String current_logged_mail;
+  final String? event_date;
+  final String usermail;
+  const _GiftTile({Key? key, required this.current_logged_mail , required this.gift , required this.event_date , required this.usermail}) : super(key: key);
 
   @override
-  __GiftTileState createState() => __GiftTileState(current_logged_mail: this.current_logged_mail);
+  __GiftTileState createState() => __GiftTileState(current_logged_mail: this.current_logged_mail , event_date: this.event_date , usermail: this.usermail);
 }
 
 class __GiftTileState extends State<_GiftTile> {
   bool isPledged = false;
-  final String? current_logged_mail;
-  __GiftTileState({required this.current_logged_mail});
+  final String current_logged_mail;
+  final String? event_date;
+  String usermail;
+  __GiftTileState({required this.current_logged_mail , required this.event_date , required this.usermail});
+
+  void pledgeGift(String buyerMail, String receiverMail) async {
+    try {
+      // Add the pledge to the 'notifications' collection
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'buyer': buyerMail,
+        'pledgerer': receiverMail,
+        'status': 'pending',  // Assuming this status means unread
+        'timestamp': FieldValue.serverTimestamp(),  // For sorting notifications by time
+      });
+
+      // Search through the 'events' and 'gifts' collections to find the gift
+      var usersCollection = FirebaseFirestore.instance.collection('users');
+      var userDoc = await usersCollection.doc(buyerMail).get();
+
+      if (userDoc.exists) {
+        print("User document found");
+
+        // Get all events from this user
+        var eventsCollection = userDoc.reference.collection('events');
+        var eventsSnapshot = await eventsCollection.get();
+
+        for (var eventDoc in eventsSnapshot.docs) {
+          print("Found event: ${eventDoc.id}");
+
+          var giftsCollection = eventDoc.reference.collection('gifts');
+
+          // Search for the gift based on its name or other attributes
+          var giftsSnapshot = await giftsCollection.where('gift_name', isEqualTo: widget.gift['gift_name']).get();
+
+          if (giftsSnapshot.docs.isNotEmpty) {
+            var giftDoc = giftsSnapshot.docs.first;
+            print("Gift found: ${giftDoc.data()}");
+
+            // Update its status to 'pledged'
+            await giftDoc.reference.update({
+              'status': 'pledged',
+            });
+
+            // Add the gift to the 'pledged_gifts' collection of the current user
+            await FirebaseFirestore.instance.collection('users')
+                .doc(current_logged_mail)
+                .collection('pledged_gifts')
+                .add({
+              'gift_owner': current_logged_mail,
+              'gift_name': widget.gift['gift_name'],
+              'due_date': event_date,
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Gift pledged successfully!')),
+            );
+
+            return; // Exit after successful pledge
+          } else {
+            print("No gift found for ${widget.gift['gift_name']} in this event");
+          }
+        }
+      } else {
+        print("User document not found");
+      }
+
+      // If the gift was not found
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gift not found!')),
+      );
+    } catch (e) {
+      // Handle any errors
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error pledging gift: $e')),
+      );
+    }
+  }
+
   void _handlePledge() async {
     bool? isConfirmed = await showDialog<bool>(
       context: context,
@@ -259,35 +339,41 @@ class __GiftTileState extends State<_GiftTile> {
 
     if (isConfirmed == true) {
       setState(() {
-        isPledged = true; // Change the icon to indicate the gift has been pledged
+        isPledged = true;  // Change the icon or UI to indicate the gift is pledged
       });
 
-        // Add the pledged gift to Firestore under the user's pledged_gifts collection
-        FirebaseFirestore.instance
-            .collection('users')
-            .doc(current_logged_mail)
-            .collection('pledged_gifts')
-            .add({
-          'gift_owner': current_logged_mail,
-          'gift_name': widget.gift['gift_name'],
-          'timestamp': FieldValue.serverTimestamp(),
-        });
+      // Call the pledgeGift function to update the status in Firestore
+      pledgeGift(usermail, current_logged_mail);
 
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('You have pledged the gift: ${widget.gift['gift_name']}'),
-        ));
-
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('You have pledged the gift: ${widget.gift['gift_name']}'),
+      ));
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
+    // Determine the icon based on the gift's status
+    IconData giftIcon = widget.gift['status'] == 'pledged'
+        ? Icons.check_circle
+        : Icons.card_giftcard;
+
+    Color iconColor = widget.gift['status'] == 'pledged'
+        ? Colors.green
+        : Colors.blue;
+
     return ListTile(
+      leading: CircleAvatar(
+        // Optional: Display gift image if available
+        // backgroundImage: widget.gift['gift_image_path'] != null
+        //     ? NetworkImage(widget.gift['gift_image_path'])
+        //     : null,
+      ),
       title: Text(widget.gift['gift_name'] ?? 'Unnamed Gift'),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text('Category: ${widget.gift['category'] ?? 'No Category'}'),
           Text('Price: \$${widget.gift['price']}'),
           Text('Status: ${widget.gift['status']}'),
           Text('Link:'),
@@ -337,12 +423,15 @@ class __GiftTileState extends State<_GiftTile> {
       ),
       trailing: IconButton(
         icon: Icon(
-          isPledged ? Icons.check_circle : Icons.card_giftcard,
-          color: isPledged ? Colors.green : Colors.blue,
+          giftIcon,
+          color: iconColor,
         ),
-        onPressed: _handlePledge,
+        onPressed: (){
+          if(widget.gift['status'] == 'wanted'){
+              _handlePledge();
+          }
+        },
       ),
     );
   }
 }
-

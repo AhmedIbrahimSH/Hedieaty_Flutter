@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 class EventsPage extends StatefulWidget {
@@ -81,6 +84,10 @@ class _EventsPageState extends State<EventsPage> {
     TextEditingController giftNameController = TextEditingController();
     TextEditingController giftPriceController = TextEditingController();
     TextEditingController giftLinkController = TextEditingController();
+    String? selectedCategory = 'Electronics';
+
+    XFile? pickedImage;
+    final ImagePicker _picker = ImagePicker();
 
     showDialog(
       context: context,
@@ -102,6 +109,39 @@ class _EventsPageState extends State<EventsPage> {
               TextField(
                 controller: giftLinkController,
                 decoration: InputDecoration(labelText: 'Link (optional)'),
+              ),
+              DropdownButton<String>(
+                value: selectedCategory,
+                onChanged: (String? newValue) {
+                  setState(() {
+                    selectedCategory = newValue;
+                  });
+                },
+                items: <String>['Electronics', 'Books', 'Clothes', 'Toys', 'Accessories', 'Custom']
+                    .map<DropdownMenuItem<String>>((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value),
+                  );
+                }).toList(),
+              ),
+              SizedBox(height: 10),
+              Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: () async {
+                      pickedImage = await _picker.pickImage(source: ImageSource.gallery);
+                      setState(() {});
+                    },
+                    child: Text('Pick Image'),
+                  ),
+                  SizedBox(width: 10), // Space between button and CircleAvatar
+                  if (pickedImage != null)
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundImage: FileImage(File(pickedImage!.path)),
+                    ),
+                ],
               ),
             ],
           ),
@@ -127,6 +167,11 @@ class _EventsPageState extends State<EventsPage> {
                   return;
                 }
 
+                String imagePath = '';
+                if (pickedImage != null) {
+                  imagePath = pickedImage!.path; // Store the local path
+                }
+
                 try {
                   await FirebaseFirestore.instance
                       .collection('users')
@@ -138,6 +183,8 @@ class _EventsPageState extends State<EventsPage> {
                     'gift_name': giftName,
                     'price': price,
                     'link': giftLink,
+                    'category': selectedCategory,
+                    'gift_image_path': imagePath, // Store image path
                     'status': 'wanted',
                     'gift_owner': widget.currentUserMail,
                   });
@@ -167,6 +214,7 @@ class _EventsPageState extends State<EventsPage> {
     );
   }
 
+
   String formatDate(String date) {
     try {
       DateTime parsedDate = DateTime.parse(date);
@@ -183,8 +231,6 @@ class _EventsPageState extends State<EventsPage> {
 
       DateTime now = DateTime.now();
       DateTime eventDateOnly = DateTime(eventDateTime.year, eventDateTime.month, eventDateTime.day);
-      print("printed before ${eventDateOnly}");
-      print("after ${DateTime(now.year, now.month, now.day)}");
       return eventDateOnly.isAtSameMomentAs(now) || eventDateOnly.isAfter(now);
     } catch (e) {
       print('Invalid date format: $eventDate');
@@ -259,7 +305,6 @@ class _EventsPageState extends State<EventsPage> {
                             ),
                         ],
                       ),
-
                     ),
                   ),
                 );
