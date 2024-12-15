@@ -21,6 +21,9 @@ class _EventsPageState extends State<EventsPage> {
   LocalDatabase localdb;
   bool isButtonVisible = true;
   bool isButtonPressed = false;
+  String sortBy = 'Name'; // Default sort by Name
+  String statusFilter = 'Upcoming'; // Default filter
+
   _EventsPageState({required this.localdb});
   @override
   void initState() {
@@ -245,112 +248,196 @@ class _EventsPageState extends State<EventsPage> {
     }
   }
 
+  // Filter events by status (Upcoming, Present, Past)
+  List<DocumentSnapshot> _filterEventsByStatus(List<DocumentSnapshot> events) {
+    DateTime now = DateTime.now();
+    List<DocumentSnapshot> filteredEvents = [];
+
+    for (var event in events) {
+      DateTime eventDate = DateTime.parse(event['date']);
+      if (statusFilter == 'Upcoming' && eventDate.isAfter(now)) {
+        filteredEvents.add(event);
+      } else if (statusFilter == 'Present' && eventDate.isAtSameMomentAs(now)) {
+        filteredEvents.add(event);
+      } else if (statusFilter == 'Past' && eventDate.isBefore(now)) {
+        filteredEvents.add(event);
+      }
+    }
+
+    return filteredEvents;
+  }
+
+  // Update the stream based on selected sort/filter options
+  void _updateStream() {
+    setState(() {
+      if (sortBy == 'Name') {
+        _eventsStream = FirebaseFirestore.instance
+            .collection('users')
+            .doc(widget.currentUserMail)
+            .collection('events')
+            .orderBy('name')  // Sort by event name
+            .snapshots();
+      } else if (sortBy == 'Date') {
+        _eventsStream = FirebaseFirestore.instance
+            .collection('users')
+            .doc(widget.currentUserMail)
+            .collection('events')
+            .orderBy('date', descending: true)  // Sort by date
+            .snapshots();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('My Events'),
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: localdb.getEventsForUser(widget.currentUserMail),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          }
-
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(
-              child: Text(
-                'No events found!',
-                style: TextStyle(fontSize: 18),
-              ),
-            );
-          }
-
-          final events = snapshot.data!;
-
-          return Scrollbar(
-            child: SingleChildScrollView(
-              child: Column(
-                children: events.map((event) {
-                  final eventName = event['name'];
-                  final eventDate = event['date'];
-                  final eventId = event['name'];
-
-                  return Card(
-                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    elevation: 5,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: ListTile(
-                        title: Text(
-                          eventName,
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text(
-                          'Date: ${formatDate(eventDate)}',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (isUpcoming(eventDate))
-                              AnimatedOpacity(
-                                opacity: isButtonVisible ? 1.0 : 0.0,
-                                duration: Duration(milliseconds: 500),
-                                child: IconButton(
-                                  icon: Icon(Icons.add_card),
-                                  onPressed: () {
-                                    addGift(eventId);
-                                  },
-                                ),
-                              ),
-                            if (isUpcoming(eventDate))
-                              IconButton(
-                                icon: Icon(Icons.delete, color: Colors.red),
-                                onPressed: () {
-                                  deleteEvent(eventId);
-                                },
-                              ),
-
-                            FutureBuilder<bool>(
-                              future: this.localdb.isEventInFirebase(widget.currentUserMail, eventName),
-                              builder: (context, snapshot) {
-                                if (snapshot.connectionState == ConnectionState.waiting) {
-                                  return CircularProgressIndicator();  // Show a loading indicator while waiting
-                                } else if (snapshot.hasData && snapshot.data == false && !isButtonPressed) {
-                                  return AnimatedOpacity(
-                                    opacity: isButtonVisible ? 1.0 : 0.0,
-                                    duration: Duration(milliseconds: 500),
-                                    child: IconButton(
-                                      icon: Icon(Icons.cloud_upload),
-                                      onPressed: () async {
-                                        await this.localdb.insertEventToFirebase(widget.currentUserMail, eventName, eventDate);
-                                        setState(() {
-                                          isButtonPressed = true;  // Hide the button after pressing
-                                        });
-                                      },
-                                    ),
-                                  );
-                                } else {
-                                  return Container();  // No button if the event is already in Firebase or if button was pressed
-                                }
-                              },
-                            ),
-
-                          ],
-                        ),
-                      ),
-                    ),
+      body: Column(
+        children: [
+          // Dropdown for sorting options (Name, Date)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              DropdownButton<String>(
+                value: sortBy,
+                onChanged: (newValue) {
+                  setState(() {
+                    sortBy = newValue!;
+                    _updateStream();
+                  });
+                },
+                items: <String>['Name', 'Date']
+                    .map<DropdownMenuItem<String>>((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value),
                   );
                 }).toList(),
               ),
+              SizedBox(width: 20), // Space between the two dropdowns
+              DropdownButton<String>(
+                value: statusFilter,
+                onChanged: (newValue) {
+                  setState(() {
+                    statusFilter = newValue!;
+                  });
+                },
+                items: <String>['Upcoming', 'Present', 'Past']
+                    .map<DropdownMenuItem<String>>((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+          // Event list based on filtered and sorted events
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _eventsStream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(child: CircularProgressIndicator());
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'No events found!',
+                      style: TextStyle(fontSize: 18),
+                    ),
+                  );
+                }
+
+                final events = snapshot.data!.docs;
+                final filteredEvents = _filterEventsByStatus(events);
+
+                return Scrollbar(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: filteredEvents.map((event) {
+                        final eventName = event['name'];
+                        final eventDate = event['date'];
+                        final eventId = event['name'];
+
+                        return Card(
+                          margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          elevation: 5,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: ListTile(
+                              title: Text(
+                                eventName,
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Text(
+                                'Date: ${formatDate(eventDate)}',
+                                style: TextStyle(color: Colors.grey[600]),
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isUpcoming(eventDate))
+                                    AnimatedOpacity(
+                                      opacity: isButtonVisible ? 1.0 : 0.0,
+                                      duration: Duration(milliseconds: 500),
+                                      child: IconButton(
+                                        icon: Icon(Icons.add_card),
+                                        onPressed: () {
+                                          addGift(eventId);
+                                        },
+                                      ),
+                                    ),
+                                  if (isUpcoming(eventDate))
+                                    IconButton(
+                                      icon: Icon(Icons.delete, color: Colors.red),
+                                      onPressed: () {
+                                        deleteEvent(eventId);
+                                      },
+                                    ),
+                                  FutureBuilder<bool>(
+                                    future: this.localdb.isEventInFirebase(widget.currentUserMail, eventName),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.connectionState == ConnectionState.waiting) {
+                                        return CircularProgressIndicator();  // Show a loading indicator while waiting
+                                      } else if (snapshot.hasData && snapshot.data == false && !isButtonPressed) {
+                                        return AnimatedOpacity(
+                                          opacity: isButtonVisible ? 1.0 : 0.0,
+                                          duration: Duration(milliseconds: 500),
+                                          child: IconButton(
+                                            icon: Icon(Icons.cloud_upload),
+                                            onPressed: () async {
+                                              await this.localdb.insertEventToFirebase(widget.currentUserMail, eventName, eventDate);
+                                              setState(() {
+                                                isButtonPressed = true;  // Hide the button after pressing
+                                              });
+                                            },
+                                          ),
+                                        );
+                                      } else {
+                                        return Container();  // No button if the event is already in Firebase or if button was pressed
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }

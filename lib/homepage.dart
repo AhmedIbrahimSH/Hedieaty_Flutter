@@ -254,6 +254,7 @@ class _HomePageState extends State<HomePage> {
         padding: const EdgeInsets.all(8.0),
         child: FutureBuilder<List<Map<String, dynamic>>>(
           future: _friendsFuture,
+
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return Center(child: CircularProgressIndicator());
@@ -280,7 +281,7 @@ class _HomePageState extends State<HomePage> {
                   margin: const EdgeInsets.symmetric(vertical: 8.0),
                   child: ListTile(
                     contentPadding: EdgeInsets.all(16),
-                    title: Text(friend['mail'], style: TextStyle(fontWeight: FontWeight.bold)),
+                    title: Text(friend['name'], style: TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(friend['mail']),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,

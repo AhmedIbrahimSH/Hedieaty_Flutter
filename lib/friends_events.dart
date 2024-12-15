@@ -341,10 +341,9 @@ class __GiftTileState extends State<_GiftTile> {
 
     if (isConfirmed == true) {
       setState(() {
-        isPledged = true;  // Change the icon or UI to indicate the gift is pledged
+        isPledged = true;
       });
 
-      // Call the pledgeGift function to update the status in Firestore
       pledgeGift(usermail, current_logged_mail , widget.gift['gift_name']);
 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
