@@ -97,6 +97,75 @@ class LocalDatabase {
     }
   }
 
+  Future<void> deleteEvent({
+    required String mail,
+    required String eventName,
+  }) async {
+    try {
+      // Delete event from Firebase
+      FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+      // Find the specific event document in Firebase
+      QuerySnapshot eventSnapshot = await firestore
+          .collection('users')
+          .doc(mail)
+          .collection('events')
+          .where('name', isEqualTo: eventName)
+          .get();
+
+      for (QueryDocumentSnapshot eventDoc in eventSnapshot.docs) {
+        // Delete the event document
+        await firestore
+            .collection('users')
+            .doc(mail)
+            .collection('events')
+            .doc(eventDoc.id)
+            .delete();
+
+        // Also delete associated gifts from Firebase
+        QuerySnapshot giftSnapshot = await firestore
+            .collection('users')
+            .doc(mail)
+            .collection('events')
+            .doc(eventDoc.id)
+            .collection('gifts')
+            .get();
+
+        for (QueryDocumentSnapshot giftDoc in giftSnapshot.docs) {
+          await firestore
+              .collection('users')
+              .doc(mail)
+              .collection('events')
+              .doc(eventDoc.id)
+              .collection('gifts')
+              .doc(giftDoc.id)
+              .delete();
+        }
+      }
+
+      // Delete event from the local SQLite database
+      int deletedRows = await db.delete(
+        'events',
+        where: 'mail = ? AND name = ?',
+        whereArgs: [mail, eventName],
+      );
+
+      if (deletedRows > 0) {
+        await db.delete(
+          'gifts',
+          where: 'mail = ? AND event_name = ?',
+          whereArgs: [mail, eventName],
+        );
+        print('Event "$eventName" deleted locally and in Firebase.');
+      } else {
+        print('Event "$eventName" not found locally but deleted in Firebase.');
+      }
+    } catch (e) {
+      print('Error deleting event: $e');
+    }
+  }
+
+
 
   Future<List<Map<String, dynamic>>> getEventsForUser(String mail) async {
     try {

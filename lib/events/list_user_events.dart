@@ -21,8 +21,8 @@ class _EventsPageState extends State<EventsPage> {
   LocalDatabase localdb;
   bool isButtonVisible = true;
   bool isButtonPressed = false;
-  String sortBy = 'Name'; // Default sort by Name
-  String statusFilter = 'Upcoming'; // Default filter
+  String sortBy = 'Name';
+  String statusFilter = 'Upcoming';
 
   _EventsPageState({required this.localdb});
   @override
@@ -35,59 +35,6 @@ class _EventsPageState extends State<EventsPage> {
         .orderBy('date', descending: true)
         .snapshots();
   }
-
-  Future<void> deleteEvent(String eventId) async {
-    bool? confirmDelete = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Delete Event'),
-          content: Text('Are you sure you want to delete this event?'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(false);
-              },
-              child: Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(true);
-              },
-              child: Text('Yes'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmDelete ?? false) {
-      try {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(widget.currentUserMail)
-            .collection('events')
-            .doc(eventId)
-            .delete();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Event deleted successfully!'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      } catch (e) {
-        print("Error deleting event: $e");
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete event.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
-
 
 
   Future<void> addGift(String eventId) async {
@@ -145,7 +92,7 @@ class _EventsPageState extends State<EventsPage> {
                     },
                     child: Text('Pick Image'),
                   ),
-                  SizedBox(width: 10), // Space between button and CircleAvatar
+                  SizedBox(width: 10),
                   if (pickedImage != null)
                     CircleAvatar(
                       radius: 30,
@@ -179,7 +126,7 @@ class _EventsPageState extends State<EventsPage> {
 
                 String imagePath = '';
                 if (pickedImage != null) {
-                  imagePath = pickedImage!.path; // Store the local path
+                  imagePath = pickedImage!.path;
                 }
 
                 try {
@@ -194,7 +141,7 @@ class _EventsPageState extends State<EventsPage> {
                     'price': price,
                     'link': giftLink,
                     'category': selectedCategory,
-                    'gift_image_path': imagePath, // Store image path
+                    'gift_image_path': imagePath,
                     'status': 'wanted',
                     'gift_owner': widget.currentUserMail,
                   });
@@ -248,7 +195,6 @@ class _EventsPageState extends State<EventsPage> {
     }
   }
 
-  // Filter events by status (Upcoming, Present, Past)
   List<DocumentSnapshot> _filterEventsByStatus(List<DocumentSnapshot> events) {
     DateTime now = DateTime.now();
     List<DocumentSnapshot> filteredEvents = [];
@@ -267,7 +213,6 @@ class _EventsPageState extends State<EventsPage> {
     return filteredEvents;
   }
 
-  // Update the stream based on selected sort/filter options
   void _updateStream() {
     setState(() {
       if (sortBy == 'Name') {
@@ -275,14 +220,14 @@ class _EventsPageState extends State<EventsPage> {
             .collection('users')
             .doc(widget.currentUserMail)
             .collection('events')
-            .orderBy('name')  // Sort by event name
+            .orderBy('name')
             .snapshots();
       } else if (sortBy == 'Date') {
         _eventsStream = FirebaseFirestore.instance
             .collection('users')
             .doc(widget.currentUserMail)
             .collection('events')
-            .orderBy('date', descending: true)  // Sort by date
+            .orderBy('date', descending: true)
             .snapshots();
       }
     });
@@ -296,7 +241,6 @@ class _EventsPageState extends State<EventsPage> {
       ),
       body: Column(
         children: [
-          // Dropdown for sorting options (Name, Date)
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -316,7 +260,7 @@ class _EventsPageState extends State<EventsPage> {
                   );
                 }).toList(),
               ),
-              SizedBox(width: 20), // Space between the two dropdowns
+              SizedBox(width: 20),
               DropdownButton<String>(
                 value: statusFilter,
                 onChanged: (newValue) {
@@ -334,7 +278,6 @@ class _EventsPageState extends State<EventsPage> {
               ),
             ],
           ),
-          // Event list based on filtered and sorted events
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _eventsStream,
@@ -397,15 +340,15 @@ class _EventsPageState extends State<EventsPage> {
                                   if (isUpcoming(eventDate))
                                     IconButton(
                                       icon: Icon(Icons.delete, color: Colors.red),
-                                      onPressed: () {
-                                        deleteEvent(eventId);
+                                      onPressed: () async {
+                                        await localdb.deleteEvent(mail:widget.currentUserMail, eventName: eventName);
                                       },
                                     ),
                                   FutureBuilder<bool>(
                                     future: this.localdb.isEventInFirebase(widget.currentUserMail, eventName),
                                     builder: (context, snapshot) {
                                       if (snapshot.connectionState == ConnectionState.waiting) {
-                                        return CircularProgressIndicator();  // Show a loading indicator while waiting
+                                        return CircularProgressIndicator();
                                       } else if (snapshot.hasData && snapshot.data == false && !isButtonPressed) {
                                         return AnimatedOpacity(
                                           opacity: isButtonVisible ? 1.0 : 0.0,
@@ -415,13 +358,13 @@ class _EventsPageState extends State<EventsPage> {
                                             onPressed: () async {
                                               await this.localdb.insertEventToFirebase(widget.currentUserMail, eventName, eventDate);
                                               setState(() {
-                                                isButtonPressed = true;  // Hide the button after pressing
+                                                isButtonPressed = true;
                                               });
                                             },
                                           ),
                                         );
                                       } else {
-                                        return Container();  // No button if the event is already in Firebase or if button was pressed
+                                        return Container();
                                       }
                                     },
                                   ),
