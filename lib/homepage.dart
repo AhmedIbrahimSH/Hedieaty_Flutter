@@ -300,7 +300,7 @@ class _HomePageState extends State<HomePage> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => EventPage(userMail: friendMail , current_logged_mail: currentUserMail),
+                                    builder: (context) => FriendsEventPage(current_logged_mail: currentUserMail, userMail: friendMail),
                                   ),
                                 );
                               },

@@ -6,17 +6,17 @@ import 'package:url_launcher/url_launcher.dart';
 import 'gift_details.dart';
 import 'package:intl/intl.dart';
 
-class EventPage extends StatefulWidget {
+class FriendsEventPage extends StatefulWidget {
   final String userMail;
   final String current_logged_mail;
 
-  const EventPage({Key? key, required this.current_logged_mail ,  required this.userMail}) : super(key: key);
+  const FriendsEventPage({Key? key, required this.current_logged_mail ,  required this.userMail}) : super(key: key);
 
   @override
   _EventPageState createState() => _EventPageState(current_logged_mail: this.current_logged_mail , usermail: this.userMail);
 }
 
-class _EventPageState extends State<EventPage> {
+class _EventPageState extends State<FriendsEventPage> {
   late Future<Map<DateTime, List<Map<String, dynamic>>>> _eventsFuture;
   final String current_logged_mail;
   String usermail;
@@ -224,22 +224,38 @@ class _EventPageState extends State<EventPage> {
 class _GiftTile extends StatefulWidget {
   final Map<String, dynamic> gift;
   final String current_logged_mail;
-  final String? event_date;
+  final String event_date;
   final String usermail;
-  const _GiftTile({Key? key, required this.current_logged_mail , required this.gift , required this.event_date , required this.usermail}) : super(key: key);
+
+  const _GiftTile({
+    Key? key,
+    required this.current_logged_mail,
+    required this.gift,
+    required this.event_date,
+    required this.usermail,
+  }) : super(key: key);
 
   @override
-  __GiftTileState createState() => __GiftTileState(current_logged_mail: this.current_logged_mail , event_date: this.event_date , usermail: this.usermail);
+  __GiftTileState createState() => __GiftTileState(
+    current_logged_mail: this.current_logged_mail,
+    event_date: this.event_date,
+    usermail: this.usermail,
+  );
 }
 
 class __GiftTileState extends State<_GiftTile> {
   bool isPledged = false;
   final String current_logged_mail;
-  final String? event_date;
+  final String event_date;
   String usermail;
-  __GiftTileState({required this.current_logged_mail , required this.event_date , required this.usermail});
 
-  void pledgeGift(String buyerMail, String receiverMail , String gift_name) async {
+  __GiftTileState({
+    required this.current_logged_mail,
+    required this.event_date,
+    required this.usermail,
+  });
+
+  void pledgeGift(String buyerMail, String receiverMail, String gift_name) async {
     try {
       // Add the pledge to the 'notifications' collection
       await FirebaseFirestore.instance.collection('notifications').add({
@@ -248,7 +264,7 @@ class __GiftTileState extends State<_GiftTile> {
         'status': 'pending',  // Assuming this status means unread
         'timestamp': FieldValue.serverTimestamp(),  // For sorting notifications by time
         'type': 'pledge',
-        'gift_name':gift_name ,
+        'gift_name': gift_name,
       });
 
       // Search through the 'events' and 'gifts' collections to find the gift
@@ -344,7 +360,7 @@ class __GiftTileState extends State<_GiftTile> {
         isPledged = true;
       });
 
-      pledgeGift(usermail, current_logged_mail , widget.gift['gift_name']);
+      pledgeGift(usermail, current_logged_mail, widget.gift['gift_name']);
 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('You have pledged the gift: ${widget.gift['gift_name']}'),
@@ -352,87 +368,144 @@ class __GiftTileState extends State<_GiftTile> {
     }
   }
 
+  Future<void> getEventIdForSelectedDay(String _selectedDay, String currentLoggedMail) async {
+    try {
+      // Query the 'users' collection to find the event document by date inside the 'events' subcollection
+      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentLoggedMail)
+          .collection('events')
+          .where('date', isEqualTo: _selectedDay)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        String eventId = querySnapshot.docs.first.id;
+        print('Found event with ID: $eventId');
+      } else {
+        print('Error: No event found for the selected day $_selectedDay');
+      }
+    } catch (e) {
+      print('Error while searching for event: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Determine the icon based on the gift's status
-    IconData giftIcon = widget.gift['status'] == 'pledged'
-        ? Icons.check_circle
-        : Icons.card_giftcard;
+    print('Current logged email: ${widget.current_logged_mail}');
+    print('Event date: ${widget.event_date}');
+    print('Gift name: ${widget.gift['gift_name']}');
+    var event_id = getEventIdForSelectedDay(event_date , widget.current_logged_mail);
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.current_logged_mail)
+          .collection('events')
+          .doc('9Nn8VGiTrk1HG48gbcUN')
+          .collection('gifts')
+          .doc('m1dRDrahElsr9LhAl3Tt')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return CircularProgressIndicator(); // Loading state
+        }
 
-    Color iconColor = widget.gift['status'] == 'pledged'
-        ? Colors.green
-        : Colors.blue;
+        if (snapshot.hasError) {
+          return Text('Error: ${snapshot.error}');
+        }
 
-    return ListTile(
-      leading: CircleAvatar(
-        // Optional: Display gift image if available
-        // backgroundImage: widget.gift['gift_image_path'] != null
-        //     ? NetworkImage(widget.gift['gift_image_path'])
-        //     : null,
-      ),
-      title: Text(widget.gift['gift_name'] ?? 'Unnamed Gift'),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Category: ${widget.gift['category'] ?? 'No Category'}'),
-          Text('Price: \$${widget.gift['price']}'),
-          Text('Status: ${widget.gift['status']}'),
-          Text('Link:'),
-          GestureDetector(
-            onTap: () async {
-              final url = widget.gift['link'];
-              if (url != null && await canLaunch(url)) {
-                bool? openLink = await showDialog<bool>(
-                  context: context,
-                  builder: (BuildContext context) {
-                    return AlertDialog(
-                      title: Text('External Link'),
-                      content: Text('You will leave the app to open an external link. Do you want to continue?'),
-                      actions: <Widget>[
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop(false);
-                          },
-                          child: Text('No'),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop(true);
-                          },
-                          child: Text('Yes'),
-                        ),
-                      ],
+        if (!snapshot.hasData || snapshot.data == null) {
+          return Text('Gift not found');
+        }
+
+        var giftData = snapshot.data!.data() as Map<String, dynamic>?;
+
+        if (giftData == null) {
+          return Text('Gift data is null');
+        }
+
+        // Determine the icon based on the gift's status
+        IconData giftIcon = giftData['status'] == 'pledged'
+            ? Icons.check_circle
+            : Icons.card_giftcard;
+
+        Color iconColor = giftData['status'] == 'wanted'
+            ? Colors.green
+            : Colors.blue;
+
+        return ListTile(
+          leading: CircleAvatar(
+            // Optional: Display gift image if available
+            // backgroundImage: widget.gift['gift_image_path'] != null
+            //     ? NetworkImage(widget.gift['gift_image_path'])
+            //     : null,
+          ),
+          title: Text(widget.gift['gift_name'] ?? 'Unnamed Gift'),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Category: ${widget.gift['category'] ?? 'No Category'}'),
+              Text('Price: \$${widget.gift['price']}'),
+              Text('Status: ${giftData['status']}'),
+              Text('Link:'),
+              GestureDetector(
+                onTap: () async {
+                  final url = widget.gift['link'];
+                  if (url != null && await canLaunch(url)) {
+                    bool? openLink = await showDialog<bool>(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: Text('External Link'),
+                          content: Text(
+                              'You will leave the app to open an external link. Do you want to continue?'),
+                          actions: <Widget>[
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(context).pop(false);
+                              },
+                              child: Text('No'),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(context).pop(true);
+                              },
+                              child: Text('Yes'),
+                            ),
+                          ],
+                        );
+                      },
                     );
-                  },
-                );
 
-                if (openLink == true) {
-                  await launch(url);
-                }
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('Invalid or missing URL'),
-                ));
+                    if (openLink == true) {
+                      await launch(url);
+                    }
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Invalid or missing URL'),
+                    ));
+                  }
+                },
+                child: Text(
+                  widget.gift['link'] ?? 'No link available',
+                  style: TextStyle(
+                      color: Colors.blue, decoration: TextDecoration.underline),
+                ),
+              ),
+            ],
+          ),
+          trailing: IconButton(
+            icon: Icon(
+              giftIcon,
+              color: iconColor,
+            ),
+            onPressed: () {
+              if (widget.gift['status'] == 'wanted') {
+                _handlePledge();
               }
             },
-            child: Text(
-              widget.gift['link'] ?? 'No link available',
-              style: TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
-            ),
           ),
-        ],
-      ),
-      trailing: IconButton(
-        icon: Icon(
-          giftIcon,
-          color: iconColor,
-        ),
-        onPressed: (){
-          if(widget.gift['status'] == 'wanted'){
-              _handlePledge();
-          }
-        },
-      ),
+        );
+      },
     );
-  }
-}
+  }}

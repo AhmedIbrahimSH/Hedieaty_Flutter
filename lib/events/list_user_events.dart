@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:app/local_database/local_sql_init.dart';
 
+import '../gift_list_per_event.dart';
+
 
 class EventsPage extends StatefulWidget {
   final String currentUserMail;
@@ -326,6 +328,23 @@ class _EventsPageState extends State<EventsPage> {
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  // Navigate to the gifts page when the event row is clicked
+                                  GestureDetector(
+                                    onTap: () {
+                                      // Navigate to the gifts page
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => GiftsPage(eventId: eventId, currentUserMail: widget.currentUserMail,),
+                                        ),
+                                      );
+                                    },
+                                    child: Icon(
+                                      Icons.arrow_forward_ios,
+                                      size: 20,
+                                      color: Colors.black,
+                                    ),
+                                  ),
                                   if (isUpcoming(eventDate))
                                     AnimatedOpacity(
                                       opacity: isButtonVisible ? 1.0 : 0.0,
@@ -341,7 +360,7 @@ class _EventsPageState extends State<EventsPage> {
                                     IconButton(
                                       icon: Icon(Icons.delete, color: Colors.red),
                                       onPressed: () async {
-                                        await localdb.deleteEvent(mail:widget.currentUserMail, eventName: eventName);
+                                        await localdb.deleteEvent(mail: widget.currentUserMail, eventName: eventName);
                                       },
                                     ),
                                   FutureBuilder<bool>(
@@ -377,6 +396,8 @@ class _EventsPageState extends State<EventsPage> {
                     ),
                   ),
                 );
+
+
               },
             ),
           ),
