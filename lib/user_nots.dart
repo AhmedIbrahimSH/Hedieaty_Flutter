@@ -14,13 +14,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
   late Stream<QuerySnapshot> notificationsStream;
   String currentmail;
   _NotificationsPageState({required this.currentmail});
+
   @override
   void initState() {
     super.initState();
     notificationsStream = FirebaseFirestore.instance
         .collection('notifications')
         .snapshots();
-
   }
 
   @override
@@ -28,6 +28,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Notifications'),
+
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: notificationsStream,
@@ -62,6 +63,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                     contentPadding: EdgeInsets.all(10.0),
                     title: Text('Friend request from $sender'),
                     subtitle: Text('Status: $status'),
+
                     trailing: status == 'pending'
                         ? Row(
                       mainAxisSize: MainAxisSize.min,
@@ -72,8 +74,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
                         ),
                         SizedBox(width: 8),
                         ElevatedButton(
-                          onPressed: () => rejectRequest(notification.id),
+                          onPressed: () => rejectRequest( notification['sender'] , notification.id),
                           child: Text('Reject'),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete),
+                          onPressed: () => confirmDelete(notification.id, type),
                         ),
                       ],
                     )
@@ -84,11 +90,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
               // For "pledging" notifications
               if (type == 'pledge' && notification['pledgerer'] == this.currentmail) {
-
                 String buyer = notification['buyer'];
                 String pledger = notification['pledgerer'];
                 String status = notification['status'];
                 String gift_name = notification['gift_name'];
+
                 // Update the status to 'seen' if it's not already 'seen'
                 if (status != 'seen') {
                   FirebaseFirestore.instance
@@ -98,13 +104,17 @@ class _NotificationsPageState extends State<NotificationsPage> {
                     print('Error updating status to seen: $e');
                   });
                 }
-                print(buyer);
+
                 return Card(
                   margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
                   child: ListTile(
                     contentPadding: EdgeInsets.all(10.0),
-                    title: Text('$buyer promised to get you the gift : ${gift_name}'),
+                    title: Text('$buyer promised to get you the gift: $gift_name'),
                     subtitle: Text('Buyer: $buyer\nStatus: $status'),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete),
+                      onPressed: () => confirmDelete(notification.id, type),
+                    ),
                   ),
                 );
               }
@@ -141,13 +151,19 @@ class _NotificationsPageState extends State<NotificationsPage> {
           .doc(senderMail)
           .set({'mail': senderMail});
 
-      // Send notification to sender
-      await FirebaseFirestore.instance.collection('notifications').add({
-        'sender': widget.currentmail,
-        'receiver': senderMail,
-        'status': 'accepted',
-        'timestamp': FieldValue.serverTimestamp(),
-        'type': 'frequest',
+      // Remove the friend request from both sender and receiver's friend request collection
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.currentmail)
+          .collection('friend_request')
+          .where('sender', isEqualTo: senderMail)
+          .where('receiver', isEqualTo: widget.currentmail)
+          .where('status', isEqualTo: 'sent')
+          .get()
+          .then((snapshot) {
+        for (var doc in snapshot.docs) {
+          doc.reference.delete();
+        }
       });
 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -160,14 +176,30 @@ class _NotificationsPageState extends State<NotificationsPage> {
     }
   }
 
-  // Reject the friend request (delete notification)
-  void rejectRequest(String notificationId) async {
+  void rejectRequest(String senderMail , String notificationId) async {
     try {
-      // Delete the notification from Firestore
       await FirebaseFirestore.instance
           .collection('notifications')
           .doc(notificationId)
           .delete();
+
+      print('-------');
+      print(senderMail);
+      print(widget.currentmail);
+      print("_------");
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(senderMail)
+          .collection('friend_request')
+          .where('sender', isEqualTo: senderMail)
+          .where('receiver', isEqualTo: widget.currentmail)
+          .where('status', isEqualTo: 'sent')
+          .get()
+          .then((snapshot) {
+        for (var doc in snapshot.docs) {
+          doc.reference.delete();
+        }
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Friend request rejected.'),
@@ -176,6 +208,63 @@ class _NotificationsPageState extends State<NotificationsPage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Error: $e'),
       ));
+    }
+  }
+
+  // Confirm the deletion of notifications
+  void confirmDelete(String notificationId, String type) async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Confirm Deletion'),
+          content: Text('Are you sure you want to delete all $type notifications?'),
+          actions: <Widget>[
+            TextButton(
+              child: Text('No'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: Text('Yes'),
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await deleteNotifications(type);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Notifications deleted.'),
+                ));
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Delete all notifications based on type (receiver or pledgerer)
+  Future<void> deleteNotifications(String type) async {
+    try {
+      QuerySnapshot snapshot;
+      if (type == 'frequest') {
+        snapshot = await FirebaseFirestore.instance
+            .collection('notifications')
+            .where('receiver', isEqualTo: widget.currentmail)
+            .get();
+      } else if (type == 'pledge') {
+        snapshot = await FirebaseFirestore.instance
+            .collection('notifications')
+            .where('pledgerer', isEqualTo: widget.currentmail)
+            .get();
+      } else {
+        return;
+      }
+
+      for (var doc in snapshot.docs) {
+        await doc.reference.delete();
+      }
+    } catch (e) {
+      print('Error deleting notifications: $e');
     }
   }
 }

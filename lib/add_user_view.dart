@@ -38,6 +38,46 @@ class _UsersPageState extends State<UsersPage> {
     }
   }
 
+  void updateFriendRequest(String currentMail, String otherMail) async {
+    FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+    Map<String, dynamic> friendRequest = {
+      'sender': currentMail,
+      'receiver': otherMail,
+      'status': 'sent',
+    };
+
+    try {
+      DocumentReference currentUserRef = firestore.collection('users').doc(currentMail);
+
+      await currentUserRef.collection('friend_request').add(friendRequest);
+
+
+      print('Friend request sent from $currentMail to $otherMail');
+    } catch (e) {
+      print('Error updating friend request: $e');
+    }
+  }
+
+  // Check if a friend request exists
+  Future<bool> hasRequestSent(String currentMail, String friendMail) async {
+    try {
+      var snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentMail)
+          .collection('friend_request')
+          .where('sender', isEqualTo: currentMail)
+          .where('receiver', isEqualTo: friendMail)
+          .where('status', isEqualTo: 'sent')
+          .get();
+
+      return snapshot.docs.isNotEmpty; // If a matching document is found, return true
+    } catch (e) {
+      print('Error checking friend request status: $e');
+      return false;
+    }
+  }
+
   // Fetch current user's friends
   Future<List<String>> fetchUserFriends() async {
     try {
@@ -110,41 +150,46 @@ class _UsersPageState extends State<UsersPage> {
                 child: ListView.builder(
                   itemCount: filteredUsers.length,
                   itemBuilder: (context, index) {
-                    return Card(
-                      margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          radius: 25,
-                          backgroundImage: NetworkImage('https://static.vecteezy.com/system/resources/thumbnails/026/497/734/small_2x/businessman-on-isolated-png.png'),
-                        ),
-                        contentPadding: EdgeInsets.all(10.0),
-                        title: Text(filteredUsers[index]['name'] ?? 'Unknown'),
-                        subtitle: Text(filteredUsers[index]['mail'] ?? 'Unknown Mail'),
-                        trailing: StatefulBuilder(  // StatefulBuilder for button state
-                          builder: (context, setButtonState) {
-                            bool isRequestSent = false;
+                    return FutureBuilder<bool>(
+                      future: hasRequestSent(widget.currentmail, filteredUsers[index]['mail']),
+                      builder: (context, requestSnapshot) {
+                        if (requestSnapshot.connectionState == ConnectionState.waiting) {
+                          return Center(child: CircularProgressIndicator());
+                        }
 
-                            return ElevatedButton(
-                              onPressed: () {
-                                if (!isRequestSent) {
-                                  addFriend(context, filteredUsers[index]['mail']);
-                                  setButtonState(() {
-                                    isRequestSent = true; // Update button state
-                                  });
-                                }
-                              },
+                        bool isRequestSent = requestSnapshot.data ?? false;
+
+                        return Card(
+                          margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              radius: 25,
+                              backgroundImage: NetworkImage('https://static.vecteezy.com/system/resources/thumbnails/026/497/734/small_2x/businessman-on-isolated-png.png'),
+                            ),
+                            contentPadding: EdgeInsets.all(10.0),
+                            title: Text(filteredUsers[index]['name'] ?? 'Unknown'),
+                            subtitle: Text(filteredUsers[index]['mail'] ?? 'Unknown Mail'),
+                            trailing: ElevatedButton(
+                              onPressed: isRequestSent
+                                  ? null
+                                  : () {
+                                addFriend(context, filteredUsers[index]['mail']);
+                                updateFriendRequest(widget.currentmail, filteredUsers[index]['mail']);
+                                setState(() {
+
+                                });
+                                },
                               child: Text(isRequestSent ? 'Request Sent' : 'Add Friend'),
-                            );
-                          },
-                        ),
-                      ),
+                            ),
+                          ),
+                        );
+                      },
                     );
                   },
                 ),
               );
             },
           ),
-
         ],
       ),
     );
@@ -152,11 +197,10 @@ class _UsersPageState extends State<UsersPage> {
 
   void addFriend(BuildContext context, String userMail) async {
     try {
-      // Create a notification for the receiver that there's a pending friend request
       await FirebaseFirestore.instance.collection('notifications').add({
         'sender': widget.currentmail,
         'receiver': userMail,
-        'status': 'pending', // 'pending' until the receiver accepts
+        'status': 'pending',
         'timestamp': FieldValue.serverTimestamp(),
         'type': 'frequest'
       });
