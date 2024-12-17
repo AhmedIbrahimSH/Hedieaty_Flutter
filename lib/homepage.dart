@@ -335,6 +335,10 @@ class _HomePageState extends State<HomePage> {
                   elevation: 5,
                   margin: const EdgeInsets.symmetric(vertical: 8.0),
                   child: ListTile(
+                    leading: CircleAvatar(
+                      radius: 25,
+                      backgroundImage: NetworkImage('https://static.vecteezy.com/system/resources/thumbnails/026/497/734/small_2x/businessman-on-isolated-png.png'),
+                    ),
                     contentPadding: EdgeInsets.all(16),
                     title: Text(friend['name'], style: TextStyle(fontWeight: FontWeight.bold)),
                     onTap: (){

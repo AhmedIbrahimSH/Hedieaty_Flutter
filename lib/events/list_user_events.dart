@@ -311,6 +311,9 @@ class _EventsPageState extends State<EventsPage> {
                           child: Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: ListTile(
+                              onTap: (){
+                                // here gpt
+                              },
                               title: Text(
                                 eventName,
                                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),

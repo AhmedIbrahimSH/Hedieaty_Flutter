@@ -5,29 +5,25 @@ class FriendGiftsPage extends StatelessWidget {
   final String friendMail;
   final String current_logged_mail; // Example, replace with actual logged user email
 
-  FriendGiftsPage({required this.current_logged_mail , required this.friendMail});
+  FriendGiftsPage({required this.current_logged_mail, required this.friendMail});
 
-  Future<List<Map<String, dynamic>>> fetchFriendGifts() async {
-    try {
-      var eventsSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(friendMail)
-          .collection('events')
-          .get();
-
+  // Stream to listen to gifts data in real-time
+  Stream<List<Map<String, dynamic>>> get giftStream {
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(friendMail)
+        .collection('events')
+        .snapshots()
+        .asyncMap((eventsSnapshot) async {
       List<Map<String, dynamic>> gifts = [];
-
       for (var eventDoc in eventsSnapshot.docs) {
         var giftsSnapshot = await eventDoc.reference.collection('gifts').get();
         for (var giftDoc in giftsSnapshot.docs) {
           gifts.add(giftDoc.data() as Map<String, dynamic>);
         }
       }
-
       return gifts;
-    } catch (e) {
-      throw Exception("Error fetching gifts: $e");
-    }
+    });
   }
 
   // Handle the pledge logic
@@ -123,8 +119,8 @@ class FriendGiftsPage extends StatelessWidget {
         title: Text('Gifts for $friendMail'),
         backgroundColor: Colors.teal,
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: fetchFriendGifts(),
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: giftStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
@@ -148,6 +144,10 @@ class FriendGiftsPage extends StatelessWidget {
                 elevation: 5,
                 margin: const EdgeInsets.symmetric(vertical: 8.0),
                 child: ListTile(
+                  leading: CircleAvatar(
+                    radius: 25,
+                    backgroundImage: NetworkImage('https://cdn.pixabay.com/photo/2019/10/22/03/34/gift-4567561_640.jpg'),
+                  ),
                   contentPadding: EdgeInsets.all(16),
                   title: Text(gift['gift_name'], style: TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Column(

@@ -434,10 +434,9 @@ class __GiftTileState extends State<_GiftTile> {
 
         return ListTile(
           leading: CircleAvatar(
-            // Optional: Display gift image if available
-            // backgroundImage: widget.gift['gift_image_path'] != null
-            //     ? NetworkImage(widget.gift['gift_image_path'])
-            //     : null,
+            backgroundImage:
+                NetworkImage('https://cdn.pixabay.com/photo/2019/10/22/03/34/gift-4567561_640.jpg')
+
           ),
           title: Text(widget.gift['gift_name'] ?? 'Unnamed Gift'),
           subtitle: Column(

@@ -113,6 +113,10 @@ class _UsersPageState extends State<UsersPage> {
                     return Card(
                       margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
                       child: ListTile(
+                        leading: CircleAvatar(
+                          radius: 25,
+                          backgroundImage: NetworkImage('https://static.vecteezy.com/system/resources/thumbnails/026/497/734/small_2x/businessman-on-isolated-png.png'),
+                        ),
                         contentPadding: EdgeInsets.all(10.0),
                         title: Text(filteredUsers[index]['name'] ?? 'Unknown'),
                         subtitle: Text(filteredUsers[index]['mail'] ?? 'Unknown Mail'),
