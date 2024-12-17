@@ -52,6 +52,13 @@ class _UsersPageState extends State<UsersPage> {
 
       await currentUserRef.collection('friend_request').add(friendRequest);
 
+      DocumentReference receiverUserRef = firestore.collection('users').doc(otherMail);
+      await receiverUserRef.collection('friend_request').add({
+        'sender': currentMail,
+        'receiver': otherMail,
+        'status': 'sent',  // Status for the receiver is 'pending'
+      });
+
 
       print('Friend request sent from $currentMail to $otherMail');
     } catch (e) {
@@ -70,8 +77,16 @@ class _UsersPageState extends State<UsersPage> {
           .where('receiver', isEqualTo: friendMail)
           .where('status', isEqualTo: 'sent')
           .get();
+      var ssnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(friendMail)
+          .collection('friend_request')
+          .where('sender', isEqualTo: friendMail)
+          .where('receiver', isEqualTo: currentMail)
+          .where('status', isEqualTo: 'sent')
+          .get();
 
-      return snapshot.docs.isNotEmpty; // If a matching document is found, return true
+      return snapshot.docs.isNotEmpty || ssnapshot.docs.isNotEmpty; // If a matching document is found, return true
     } catch (e) {
       print('Error checking friend request status: $e');
       return false;

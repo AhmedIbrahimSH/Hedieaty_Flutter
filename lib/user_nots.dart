@@ -166,6 +166,20 @@ class _NotificationsPageState extends State<NotificationsPage> {
         }
       });
 
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(senderMail)
+          .collection('friend_request')
+          .where('sender', isEqualTo: senderMail)
+          .where('receiver', isEqualTo: widget.currentmail)
+          .where('status', isEqualTo: 'sent')
+          .get()
+          .then((snapshot) {
+        for (var doc in snapshot.docs) {
+          doc.reference.delete();
+        }
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('$senderMail has accepted your friend request!'),
       ));
@@ -190,6 +204,20 @@ class _NotificationsPageState extends State<NotificationsPage> {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(senderMail)
+          .collection('friend_request')
+          .where('sender', isEqualTo: senderMail)
+          .where('receiver', isEqualTo: widget.currentmail)
+          .where('status', isEqualTo: 'sent')
+          .get()
+          .then((snapshot) {
+        for (var doc in snapshot.docs) {
+          doc.reference.delete();
+        }
+      });
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.currentmail)
           .collection('friend_request')
           .where('sender', isEqualTo: senderMail)
           .where('receiver', isEqualTo: widget.currentmail)
