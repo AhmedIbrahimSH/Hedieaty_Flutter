@@ -1,3 +1,5 @@
+import 'dart:ffi';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:sqflite/sqflite.dart';
@@ -70,7 +72,42 @@ class LocalDatabase {
     return events;
   }
 
-  Future<void> insertEventLocally(String mail, String date, String name) async {
+  Future<void> insertGiftLocally(
+  String eventName, String giftName,
+  double price,
+  String giftLink,
+  String selectedCategory,
+  String imagePath,
+  String currentUserMail,
+      ) async {
+    print("------------");
+    print(eventName);
+    print(giftLink);
+    print(giftName);
+    print(selectedCategory);
+    print(price);
+    print(imagePath);
+    print(currentUserMail);
+
+    await db.insert(
+      'gifts',
+      {
+        'event_name': eventName,
+        'gift_name': giftName,
+        'price': price,
+        'link': giftLink,
+        'category': selectedCategory,
+        'gift_image_url': imagePath,
+        'status': 'wanted',
+        'gift_owner': currentUserMail,
+        'mail': currentUserMail,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+
+    Future<void> insertEventLocally(String mail, String date, String name) async {
     try {
       List<Map<String, dynamic>> existingEvent = await db.query(
         'events',

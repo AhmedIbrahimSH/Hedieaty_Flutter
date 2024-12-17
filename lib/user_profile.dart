@@ -1,13 +1,18 @@
+import 'package:app/local_database/local_sql_init.dart';
+import 'package:app/user_nots.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import 'current_logged_user/pledged_gifts.dart';
+import 'events/list_user_events.dart';
+
 class ProfilePage extends StatefulWidget {
   final String currentUserMail;
-
-  ProfilePage({required this.currentUserMail});
+  LocalDatabase localdb;
+  ProfilePage({required this.currentUserMail, required this.localdb});
 
   @override
-  _ProfilePageState createState() => _ProfilePageState();
+  _ProfilePageState createState() => _ProfilePageState(db: this.localdb);
 }
 
 class _ProfilePageState extends State<ProfilePage> {
@@ -15,9 +20,45 @@ class _ProfilePageState extends State<ProfilePage> {
   late TextEditingController _mailController;
   late TextEditingController _phoneController;
   late TextEditingController _passwordController;
+  late Future<List<Map<String, dynamic>>> _friendsFuture;
+  late LocalDatabase db;
+  _ProfilePageState({required this.db});
   bool _isEditing = false;
   bool _isPasswordVisible = false;
+  Future<List<Map<String, dynamic>>> fetchFriends() async {
+    try {
+      var snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.currentUserMail)
+          .collection('friendships')
+          .get();
 
+      List<String> friendsMails = snapshot.docs
+          .map((doc) => doc['mail'] as String)
+          .toList();
+
+      if (friendsMails.isEmpty) {
+        return [];
+      }
+
+      var friendsSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('mail', whereIn: friendsMails)
+          .get();
+
+      return friendsSnapshot.docs
+          .map((doc) => doc.data() as Map<String, dynamic>)
+          .toList();
+    } catch (e) {
+      throw Exception("Error fetching friends: $e");
+    }
+  }
+
+  void reloadFriends() {
+    setState(() {
+      _friendsFuture = fetchFriends();
+    });
+  }
   @override
   void initState() {
     super.initState();
@@ -95,6 +136,31 @@ class _ProfilePageState extends State<ProfilePage> {
               icon: Icon(Icons.save),
               onPressed: _updateUserDetails,
             ),
+          IconButton(
+            icon: Icon(Icons.event),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+
+                  builder: (context) =>  EventsPage(currentUserMail: widget.currentUserMail, localdb: this.db),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.card_giftcard_sharp),
+            onPressed: (){
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+
+                  builder: (context) =>  PledgedGiftsPage(currentUserMail: widget.currentUserMail),
+                ),
+              );
+            },
+          ),
         ],
       ),
       body: Padding(

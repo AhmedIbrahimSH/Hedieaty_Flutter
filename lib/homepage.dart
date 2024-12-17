@@ -7,6 +7,7 @@ import 'add_event.dart';
 import 'add_user_view.dart';
 import 'current_logged_user/pledged_gifts.dart';
 import 'events/list_user_events.dart';
+import 'friends_gift_page.dart';
 import 'listed_friends_events.dart';
 import 'user_nots.dart';
 
@@ -114,6 +115,18 @@ class _HomePageState extends State<HomePage> {
         false; // In case the dialog is closed without a selection, return false.
   }
 
+  // Stream to listen for friend request notifications in real-time
+  Stream<int> getFriendRequestStream() {
+    return FirebaseFirestore.instance
+        .collection('notifications')
+        .where('type', isEqualTo: 'frequest') // Filter only friend request notifications
+        .where('receiver', isEqualTo: widget.currentUserMail) // Notifications for the current user
+        .where('status', isEqualTo: 'pending') // Unread or pending friend requests
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length); // Map to the count of documents
+  }
+
+
   Future<int> getUpcomingEventsCount(String friendMail) async {
     try {
       // Get today's date as a string in the same format as stored in the database
@@ -155,7 +168,7 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: Padding(
           padding: const EdgeInsets.only(left: 8.0),
-          child: Text('Home', style: TextStyle(fontWeight: FontWeight.bold)),
+          child: Text('Tahadow', style: TextStyle(fontWeight: FontWeight.bold)),
         ),
         backgroundColor: Colors.teal,
         actions: [
@@ -195,10 +208,52 @@ class _HomePageState extends State<HomePage> {
         );
       },
     ),
+          // Friend request notifications in AppBar
           IconButton(
-            icon: Icon(Icons.refresh),
-            onPressed: reloadFriends,
+            icon: Stack(
+              children: [
+                Icon(Icons.person_add), // Friend request icon
+                StreamBuilder<int>(
+                  stream: getFriendRequestStream(),
+                  builder: (context, snapshot) {
+                    int friendRequestCount = snapshot.data ?? 0;
+
+                    if (friendRequestCount > 0) {
+                      return Positioned(
+                        right: 0,
+                        top: 0,
+                        child: CircleAvatar(
+                          radius: 8,
+                          backgroundColor: Colors.red,
+                          child: Text(
+                            '$friendRequestCount',
+                            style: TextStyle(fontSize: 10, color: Colors.white),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return SizedBox.shrink(); // Don't display anything if there are no notifications
+                  },
+                ),
+              ],
+            ),
+            onPressed: () async {
+              // Navigate to the notifications page
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => NotificationsPage(currentmail: widget.currentUserMail),
+                ),
+              );
+
+              setState(() {
+                reloadFriends();
+              });
+            },
+
           ),
+
           IconButton(
             icon: Icon(Icons.generating_tokens),
             onPressed: (){
@@ -211,38 +266,38 @@ class _HomePageState extends State<HomePage> {
               );
             },
           ),
-          IconButton(
-            icon: Icon(Icons.card_giftcard_sharp),
-            onPressed: (){
-
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-
-                  builder: (context) =>  PledgedGiftsPage(currentUserMail: widget.currentUserMail),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: Icon(Icons.event),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-
-                  builder: (context) =>  EventsPage(currentUserMail: widget.currentUserMail, localdb: this.localdb),
-                ),
-              );
-            },
-          ),
+          // IconButton(
+          //   icon: Icon(Icons.card_giftcard_sharp),
+          //   onPressed: (){
+          //
+          //     Navigator.push(
+          //       context,
+          //       MaterialPageRoute(
+          //
+          //         builder: (context) =>  PledgedGiftsPage(currentUserMail: widget.currentUserMail),
+          //       ),
+          //     );
+          //   },
+          // ),
+          // IconButton(
+          //   icon: Icon(Icons.event),
+          //   onPressed: () {
+          //     Navigator.push(
+          //       context,
+          //       MaterialPageRoute(
+          //
+          //         builder: (context) =>  EventsPage(currentUserMail: widget.currentUserMail, localdb: this.localdb),
+          //       ),
+          //     );
+          //   },
+          // ),
           IconButton(
             icon: Icon(Icons.person, color: Colors.white),
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ProfilePage(currentUserMail: widget.currentUserMail),
+                  builder: (context) => ProfilePage(currentUserMail: widget.currentUserMail, localdb: this.localdb,),
                 ),
               );
             },
@@ -282,6 +337,14 @@ class _HomePageState extends State<HomePage> {
                   child: ListTile(
                     contentPadding: EdgeInsets.all(16),
                     title: Text(friend['name'], style: TextStyle(fontWeight: FontWeight.bold)),
+                    onTap: (){
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => FriendGiftsPage(current_logged_mail: this.currentUserMail , friendMail: friendMail,),
+                        ),
+                      );
+                    },
                     subtitle: Text(friend['mail']),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,

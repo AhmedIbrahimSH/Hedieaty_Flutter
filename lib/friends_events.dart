@@ -391,7 +391,6 @@ class __GiftTileState extends State<_GiftTile> {
 
   @override
   Widget build(BuildContext context) {
-    // Determine the icon based on the gift's status
     print('Current logged email: ${widget.current_logged_mail}');
     print('Event date: ${widget.event_date}');
     print('Gift name: ${widget.gift['gift_name']}');

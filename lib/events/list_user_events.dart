@@ -39,7 +39,7 @@ class _EventsPageState extends State<EventsPage> {
   }
 
 
-  Future<void> addGift(String eventId) async {
+  Future<void> addGift(String eventName) async {
     TextEditingController giftNameController = TextEditingController();
     TextEditingController giftPriceController = TextEditingController();
     TextEditingController giftLinkController = TextEditingController();
@@ -111,6 +111,7 @@ class _EventsPageState extends State<EventsPage> {
                 String giftPrice = giftPriceController.text;
                 String giftLink = giftLinkController.text;
 
+                // Validation for required fields
                 if (giftName.isEmpty || giftPrice.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Gift name and price are required!')),
@@ -126,27 +127,23 @@ class _EventsPageState extends State<EventsPage> {
                   return;
                 }
 
+                // Prepare image path if there is one
                 String imagePath = '';
                 if (pickedImage != null) {
                   imagePath = pickedImage!.path;
                 }
 
                 try {
-                  await FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(widget.currentUserMail)
-                      .collection('events')
-                      .doc(eventId)
-                      .collection('gifts')
-                      .add({
-                    'gift_name': giftName,
-                    'price': price,
-                    'link': giftLink,
-                    'category': selectedCategory,
-                    'gift_image_path': imagePath,
-                    'status': 'wanted',
-                    'gift_owner': widget.currentUserMail,
-                  });
+                  // Insert the gift into local database
+                  await this.localdb.insertGiftLocally(
+                    eventName,
+                    giftName,
+                    price,
+                    giftLink,
+                    selectedCategory.toString(),
+                    imagePath,
+                    widget.currentUserMail,
+                  );
 
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -174,6 +171,7 @@ class _EventsPageState extends State<EventsPage> {
   }
 
 
+
   String formatDate(String date) {
     try {
       DateTime parsedDate = DateTime.parse(date);
@@ -197,23 +195,14 @@ class _EventsPageState extends State<EventsPage> {
     }
   }
 
-  List<DocumentSnapshot> _filterEventsByStatus(List<DocumentSnapshot> events) {
-    DateTime now = DateTime.now();
-    List<DocumentSnapshot> filteredEvents = [];
-
-    for (var event in events) {
-      DateTime eventDate = DateTime.parse(event['date']);
-      if (statusFilter == 'Upcoming' && eventDate.isAfter(now)) {
-        filteredEvents.add(event);
-      } else if (statusFilter == 'Present' && eventDate.isAtSameMomentAs(now)) {
-        filteredEvents.add(event);
-      } else if (statusFilter == 'Past' && eventDate.isBefore(now)) {
-        filteredEvents.add(event);
-      }
-    }
-
-    return filteredEvents;
+  List<Map<String, dynamic>> _filterEventsByStatus(List<Map<String, dynamic>> events) {
+    // Example: Filter logic for upcoming events (modify as needed)
+    return events.where((event) {
+      final eventDate = DateTime.parse(event['date']);
+      return eventDate.isAfter(DateTime.now());
+    }).toList();
   }
+
 
   void _updateStream() {
     setState(() {
@@ -281,14 +270,14 @@ class _EventsPageState extends State<EventsPage> {
             ],
           ),
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _eventsStream,
+            child: FutureBuilder<List<Map<String, dynamic>>>(
+              future: localdb.getLocalEvents(widget.currentUserMail), // Use your function here
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return Center(child: CircularProgressIndicator());
                 }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return Center(
                     child: Text(
                       'No events found!',
@@ -297,8 +286,13 @@ class _EventsPageState extends State<EventsPage> {
                   );
                 }
 
-                final events = snapshot.data!.docs;
-                final filteredEvents = _filterEventsByStatus(events);
+                final events = snapshot.data!;
+                final filteredEvents = _filterEventsByStatus(events.map((e) {
+                  return {
+                    'name': e['name'],
+                    'date': e['date'],
+                  };
+                }).toList());
 
                 return Scrollbar(
                   child: SingleChildScrollView(
@@ -328,14 +322,16 @@ class _EventsPageState extends State<EventsPage> {
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  // Navigate to the gifts page when the event row is clicked
                                   GestureDetector(
                                     onTap: () {
-                                      // Navigate to the gifts page
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (context) => GiftsPage(eventId: eventId, currentUserMail: widget.currentUserMail,),
+                                          builder: (context) => GiftsPage(
+                                            eventId: eventId,
+                                            eventName: eventName,
+                                            currentUserMail: widget.currentUserMail,
+                                          ),
                                         ),
                                       );
                                     },
@@ -352,7 +348,7 @@ class _EventsPageState extends State<EventsPage> {
                                       child: IconButton(
                                         icon: Icon(Icons.add_card),
                                         onPressed: () {
-                                          addGift(eventId);
+                                          addGift(eventName);
                                         },
                                       ),
                                     ),
@@ -360,22 +356,31 @@ class _EventsPageState extends State<EventsPage> {
                                     IconButton(
                                       icon: Icon(Icons.delete, color: Colors.red),
                                       onPressed: () async {
-                                        await localdb.deleteEvent(mail: widget.currentUserMail, eventName: eventName);
+                                        await localdb.deleteEvent(
+                                            mail: widget.currentUserMail,
+                                            eventName: eventName);
                                       },
                                     ),
                                   FutureBuilder<bool>(
-                                    future: this.localdb.isEventInFirebase(widget.currentUserMail, eventName),
+                                    future: this.localdb.isEventInFirebase(
+                                        widget.currentUserMail, eventName),
                                     builder: (context, snapshot) {
-                                      if (snapshot.connectionState == ConnectionState.waiting) {
+                                      if (snapshot.connectionState ==
+                                          ConnectionState.waiting) {
                                         return CircularProgressIndicator();
-                                      } else if (snapshot.hasData && snapshot.data == false && !isButtonPressed) {
+                                      } else if (snapshot.hasData &&
+                                          snapshot.data == false &&
+                                          !isButtonPressed) {
                                         return AnimatedOpacity(
                                           opacity: isButtonVisible ? 1.0 : 0.0,
                                           duration: Duration(milliseconds: 500),
                                           child: IconButton(
                                             icon: Icon(Icons.cloud_upload),
                                             onPressed: () async {
-                                              await this.localdb.insertEventToFirebase(widget.currentUserMail, eventName, eventDate);
+                                              await this.localdb.insertEventToFirebase(
+                                                  widget.currentUserMail,
+                                                  eventName,
+                                                  eventDate);
                                               setState(() {
                                                 isButtonPressed = true;
                                               });
@@ -396,11 +401,10 @@ class _EventsPageState extends State<EventsPage> {
                     ),
                   ),
                 );
-
-
               },
             ),
           ),
+
         ],
       ),
     );

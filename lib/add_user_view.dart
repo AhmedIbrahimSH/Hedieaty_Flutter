@@ -20,16 +20,17 @@ class _UsersPageState extends State<UsersPage> {
     fetchAllUsers(); // Fetch all users initially
   }
 
-  // Fetch all users method
   Future<void> fetchAllUsers() async {
     try {
       var snapshot = await FirebaseFirestore.instance.collection('users').get();
-      allUsers = snapshot.docs
-          .map((doc) => {
-        ...doc.data(),
-        'id': doc.id  // Include document ID for guaranteed unique identification
-      })
-          .toList();
+      setState(() {
+        allUsers = snapshot.docs
+            .map((doc) => {
+          ...doc.data(),
+          'id': doc.id, // Include document ID for guaranteed unique identification
+        })
+            .toList();
+      });
 
       print("Total users fetched: ${allUsers.length}");
     } catch (e) {
@@ -73,7 +74,7 @@ class _UsersPageState extends State<UsersPage> {
                 border: OutlineInputBorder(),
               ),
               onChanged: (query) {
-                setState(() {}); // Refresh the UI when user types in the search
+                setState(() {});
               },
             ),
           ),
@@ -92,10 +93,10 @@ class _UsersPageState extends State<UsersPage> {
 
               var filteredUsers = allUsers.where((user) {
                 String userMail = user['mail'];
-                String userPhone = user['phone'] ?? ''; // Assuming 'phone' field exists
+                String userPhone = user['phone'] ?? '';
                 String query = searchController.text.toLowerCase();
 
-                // Filter users by phone number
+                // Filter to exclude current user and existing friends
                 return userMail != widget.currentmail &&
                     !friends.contains(userMail) &&
                     userPhone.contains(query);
@@ -115,11 +116,22 @@ class _UsersPageState extends State<UsersPage> {
                         contentPadding: EdgeInsets.all(10.0),
                         title: Text(filteredUsers[index]['name'] ?? 'Unknown'),
                         subtitle: Text(filteredUsers[index]['mail'] ?? 'Unknown Mail'),
-                        trailing: ElevatedButton(
-                          onPressed: () {
-                            addFriend(context, filteredUsers[index]['mail']);
+                        trailing: StatefulBuilder(  // StatefulBuilder for button state
+                          builder: (context, setButtonState) {
+                            bool isRequestSent = false;
+
+                            return ElevatedButton(
+                              onPressed: () {
+                                if (!isRequestSent) {
+                                  addFriend(context, filteredUsers[index]['mail']);
+                                  setButtonState(() {
+                                    isRequestSent = true; // Update button state
+                                  });
+                                }
+                              },
+                              child: Text(isRequestSent ? 'Request Sent' : 'Add Friend'),
+                            );
                           },
-                          child: Text('Add Friend'),
                         ),
                       ),
                     );
@@ -128,6 +140,7 @@ class _UsersPageState extends State<UsersPage> {
               );
             },
           ),
+
         ],
       ),
     );

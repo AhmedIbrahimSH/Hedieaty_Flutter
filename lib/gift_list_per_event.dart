@@ -1,74 +1,151 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
 
-class GiftsPage extends StatelessWidget {
+class GiftsPage extends StatefulWidget {
   final String currentUserMail;
   final String eventId;
+  final String eventName;
+  const GiftsPage({Key? key, required this.currentUserMail, required this.eventId, required this.eventName}) : super(key: key);
 
-  const GiftsPage({Key? key, required this.currentUserMail, required this.eventId}) : super(key: key);
+  @override
+  _GiftsPageState createState() => _GiftsPageState(eventName:this.eventName);
+}
+
+class _GiftsPageState extends State<GiftsPage> {
+  List<Map<String, dynamic>> localGifts = [];
+  List<String> firebaseGiftNames = [];
+  final String eventName;
+  _GiftsPageState({required this.eventName});
+  @override
+  void initState() {
+    super.initState();
+    fetchLocalGifts(this.eventName);
+    fetchFirebaseGifts();
+  }
+
+  // Fetch gifts from SQLite database filtered by eventId
+  Future<void> fetchLocalGifts(eventName) async {
+    final dbPath = await getDatabasesPath();
+    final database = await openDatabase(join(dbPath, 'local_db.db'));
+
+    // Filter gifts based on the eventId
+    final List<Map<String, dynamic>> result = await database.query(
+      'gifts',
+      where: 'event_name = ?',
+      whereArgs: [widget.eventId],
+    );
+
+    setState(() {
+      localGifts = result;
+    });
+  }
+
+  Future<void> fetchFirebaseGifts() async {
+    print("event is ${eventName} ${widget.currentUserMail}");
+    try {
+      QuerySnapshot eventSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.currentUserMail)
+          .collection('events')
+          .where('name', isEqualTo: eventName)
+          .limit(1)
+          .get();
+
+      if (eventSnapshot.docs.isNotEmpty) {
+        var eventDoc = eventSnapshot.docs.first;
+        QuerySnapshot giftsSnapshot = await eventDoc.reference
+            .collection('gifts')
+            .get();
+
+        List<String> giftNames = [];
+        for (var giftDoc in giftsSnapshot.docs) {
+          String giftName = giftDoc['gift_name'];
+          giftNames.add(giftName);
+        }
+
+        // Update state with the fetched gift names
+        setState(() {
+          firebaseGiftNames = giftNames;
+        });
+
+        print(firebaseGiftNames);
+      } else {
+        print("Event not found");
+      }
+    } catch (e) {
+      print("Error fetching Firebase gifts: $e");
+    }
+  }
+
+
+
+  Future<void> addGiftByEventName(String eventName, Map<String, dynamic> giftData) async {
+    try {
+      QuerySnapshot eventSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.currentUserMail)
+          .collection('events')
+          .where('name', isEqualTo: eventName)
+          .get();
+
+      if (eventSnapshot.docs.isEmpty) {
+        print("Event with name '$eventName' not found.");
+        return;
+      }
+
+      // Step 2: Retrieve the event document ID from the first matching event
+      String eventId = eventSnapshot.docs.first.id;
+      print("Found Event ID: $eventId");
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.currentUserMail)
+          .collection('events')
+          .doc(eventId)
+          .collection('gifts')
+          .add(giftData);
+
+      print("Gift added successfully to event: $eventName");
+    } catch (e) {
+      print("Error adding gift by event name: $e");
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Gifts'),
+        title: Text('Gifts for Event ${widget.eventId}'),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(currentUserMail)
-            .collection('events')
-            .doc(eventId)
-            .collection('gifts')
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          }
+      body: ListView.builder(
+        itemCount: localGifts.length,
+        itemBuilder: (context, index) {
+          final gift = localGifts[index];
+          print("${firebaseGiftNames} ${gift['gift_name']}");
+          bool existsInFirebase = firebaseGiftNames.contains(gift['gift_name']);
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return Center(child: Text('No gifts found!'));
-          }
-
-          return ListView(
-            padding: EdgeInsets.all(8.0),
-            children: snapshot.data!.docs.map((DocumentSnapshot document) {
-              Map<String, dynamic> gift = document.data() as Map<String, dynamic>;
-              return Card(
-                margin: EdgeInsets.symmetric(vertical: 8.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                elevation: 5,
-                child: ListTile(
-                  contentPadding: EdgeInsets.all(16.0),
-                  title: Text(
-                    gift['gift_name'],
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Price: \$${gift['price']}'),
-                      SizedBox(height: 4),
-                      Text('Status: ${gift['status']}'),
-                    ],
-                  ),
-                  trailing: gift['status'] == 'wanted'
-                      ? IconButton(
-                    icon: Icon(Icons.delete, color: Colors.red),
-                    onPressed: () {
-                      // Delete gift from Firebase
-                      document.reference.delete();
-                    },
-                  )
-                      : Icon(
-                    Icons.check_circle,
-                    color: Colors.green,
-                  ),
-                ),
-              );
-            }).toList(),
+          return Card(
+            margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 10.0),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            elevation: 5,
+            child: ListTile(
+              title: Text(
+                gift['gift_name'],
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text('Price: \$${gift['price']} \nStatus: ${gift['status']}'),
+              trailing: existsInFirebase
+                  ? Icon(Icons.cloud_done, color: Colors.green) // Gift already exists in Firebase
+                  : IconButton(
+                icon: Icon(Icons.cloud_upload, color: Colors.blue),
+                onPressed: () {addGiftByEventName(eventName, gift);setState(() {
+                      fetchFirebaseGifts();
+                });}, // Insert gift to Firebase
+              ),
+            ),
           );
         },
       ),
