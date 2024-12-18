@@ -20,7 +20,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
     super.initState();
     notificationsStream = FirebaseFirestore.instance
         .collection('notifications')
+        .orderBy('timestamp', descending: true)
         .snapshots();
+
   }
 
   @override
@@ -111,10 +113,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
                     contentPadding: EdgeInsets.all(10.0),
                     title: Text('$buyer promised to get you the gift: $gift_name'),
                     subtitle: Text('Buyer: $buyer\nStatus: $status'),
-                    trailing: IconButton(
-                      icon: Icon(Icons.delete),
-                      onPressed: () => confirmDelete(notification.id, type),
-                    ),
+                    // trailing: IconButton(
+                    //   icon: Icon(Icons.delete),
+                    //   onPressed: () => confirmDelete(notification.id, type),
+                    // ),
                   ),
                 );
               }
@@ -195,12 +197,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
       await FirebaseFirestore.instance
           .collection('notifications')
           .doc(notificationId)
-          .delete();
+          .update({'status': 'rejected'});
 
-      print('-------');
-      print(senderMail);
-      print(widget.currentmail);
-      print("_------");
       await FirebaseFirestore.instance
           .collection('users')
           .doc(senderMail)

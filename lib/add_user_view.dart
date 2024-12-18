@@ -45,6 +45,7 @@ class _UsersPageState extends State<UsersPage> {
       'sender': currentMail,
       'receiver': otherMail,
       'status': 'sent',
+      'timestamp': FieldValue.serverTimestamp()
     };
 
     try {
@@ -56,7 +57,8 @@ class _UsersPageState extends State<UsersPage> {
       await receiverUserRef.collection('friend_request').add({
         'sender': currentMail,
         'receiver': otherMail,
-        'status': 'sent',  // Status for the receiver is 'pending'
+        'status': 'sent',
+        'timestamp': FieldValue.serverTimestamp()
       });
 
 
@@ -217,7 +219,8 @@ class _UsersPageState extends State<UsersPage> {
         'receiver': userMail,
         'status': 'pending',
         'timestamp': FieldValue.serverTimestamp(),
-        'type': 'frequest'
+        'type': 'frequest',
+        'timestamp': FieldValue.serverTimestamp()
       });
 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
