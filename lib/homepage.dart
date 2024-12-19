@@ -3,6 +3,7 @@ import 'package:app/local_database/local_sql_init.dart';
 import 'package:app/user_profile.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'add_event.dart';
 import 'add_user_view.dart';
 import 'current_logged_user/pledged_gifts.dart';
@@ -61,30 +62,38 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Stream for real-time updates on unread notifications count
   Stream<int> getUnreadNotificationsStream() {
     return FirebaseFirestore.instance
         .collection('notifications')
         .where('pledgerer', isEqualTo: widget.currentUserMail)
-        .where('status', isEqualTo: 'pending') // only unread notifications
+        .where('status', isEqualTo: 'pending')
         .snapshots()
         .map((snapshot) => snapshot.docs.length);
   }
 
-  // Function to reload friends list
   void reloadFriends() {
     setState(() {
       _friendsFuture = fetchFriends();
     });
   }
 
-  // Function to handle notification button click
   void _onNotificationsClicked() {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => NotificationsPage(currentmail: widget.currentUserMail),
       ),
+    );
+  }
+  void showToast(String message) {
+    Fluttertoast.showToast(
+      msg: message,
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.TOP,
+      timeInSecForIosWeb: 1,
+      backgroundColor: Colors.green,
+      textColor: Colors.black,
+      fontSize: 16.0,
     );
   }
 
@@ -98,13 +107,13 @@ class _HomePageState extends State<HomePage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(false); // No
+                Navigator.of(context).pop(false);
               },
               child: Text('Cancel', style: TextStyle(color: Colors.blue)),
             ),
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(true); // Yes
+                Navigator.of(context).pop(true);
               },
               child: Text('Yes', style: TextStyle(color: Colors.green)),
             ),
@@ -112,38 +121,34 @@ class _HomePageState extends State<HomePage> {
         );
       },
     ) ??
-        false; // In case the dialog is closed without a selection, return false.
+        false;
   }
 
-  // Stream to listen for friend request notifications in real-time
   Stream<int> getFriendRequestStream() {
     return FirebaseFirestore.instance
         .collection('notifications')
-        .where('type', isEqualTo: 'frequest') // Filter only friend request notifications
-        .where('receiver', isEqualTo: widget.currentUserMail) // Notifications for the current user
-        .where('status', isEqualTo: 'pending') // Unread or pending friend requests
+        .where('type', isEqualTo: 'frequest')
+        .where('receiver', isEqualTo: widget.currentUserMail)
+        .where('status', isEqualTo: 'pending')
         .snapshots()
-        .map((snapshot) => snapshot.docs.length); // Map to the count of documents
+        .map((snapshot) => snapshot.docs.length);
   }
 
 
   Future<int> getUpcomingEventsCount(String friendMail) async {
     try {
-      // Get today's date as a string in the same format as stored in the database
       var today = DateTime.now();
       String todayString = "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
 
-      // Query the events subcollection with a string comparison
       var snapshot = await FirebaseFirestore.instance
           .collection('users')
           .where('mail', isEqualTo: friendMail)
           .get();
 
       if (snapshot.docs.isEmpty) {
-        return 0; // No user found with this email
+        return 0;
       }
 
-      // Assume there is only one user with this email
       var userDocId = snapshot.docs.first.id;
 
       var eventsSnapshot = await FirebaseFirestore.instance
@@ -155,7 +160,7 @@ class _HomePageState extends State<HomePage> {
 
       return eventsSnapshot.docs.length;
     } catch (e) {
-      return 0; // Return 0 if there are errors
+      return 0;
     }
   }
 
@@ -166,13 +171,12 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Padding(
+        title: Expanded(child: Padding(
           padding: const EdgeInsets.only(left: 8.0),
           child: Text('Tahadow', style: TextStyle(fontWeight: FontWeight.bold)),
-        ),
+        )),
         backgroundColor: Colors.teal,
         actions: [
-          // Notifications icon with count
       StreamBuilder<int>(
       stream: getUnreadNotificationsStream(),
       builder: (context, snapshot) {
@@ -184,6 +188,9 @@ class _HomePageState extends State<HomePage> {
         }
 
         int unreadCount = snapshot.data ?? 0;
+        if(snapshot.data! > 0)
+          showToast('A friend just pledged ur gift');
+
 
         return Stack(
           children: [
@@ -208,17 +215,17 @@ class _HomePageState extends State<HomePage> {
         );
       },
     ),
-          // Friend request notifications in AppBar
           IconButton(
             icon: Stack(
               children: [
-                Icon(Icons.person_add), // Friend request icon
+                Icon(Icons.person_add),
                 StreamBuilder<int>(
                   stream: getFriendRequestStream(),
                   builder: (context, snapshot) {
                     int friendRequestCount = snapshot.data ?? 0;
 
                     if (friendRequestCount > 0) {
+                      showToast('You have a new friend request');
                       return Positioned(
                         right: 0,
                         top: 0,
@@ -231,15 +238,16 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                       );
+
+
                     }
 
-                    return SizedBox.shrink(); // Don't display anything if there are no notifications
+                    return SizedBox.shrink();
                   },
                 ),
               ],
             ),
             onPressed: () async {
-              // Navigate to the notifications page
               await Navigator.push(
                 context,
                 MaterialPageRoute(

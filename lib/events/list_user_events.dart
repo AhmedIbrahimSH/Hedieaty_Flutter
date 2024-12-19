@@ -134,7 +134,6 @@ class _EventsPageState extends State<EventsPage> {
                 }
 
                 try {
-                  // Insert the gift into local database
                   await this.localdb.insertGiftLocally(
                     eventName,
                     giftName,

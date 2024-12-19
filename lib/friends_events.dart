@@ -248,13 +248,79 @@ class __GiftTileState extends State<_GiftTile> {
   final String current_logged_mail;
   final String event_date;
   String usermail;
+  String? eventId;
+  String? giftId;
 
   __GiftTileState({
     required this.current_logged_mail,
     required this.event_date,
     required this.usermail,
   });
+  @override
+  void initState() {
+    super.initState();
+    _fetchEventAndGiftId();
+  }
 
+  Future<void> _fetchEventAndGiftId() async {
+    try {
+      print("man is ${widget.usermail}");
+      eventId = await getEventIdForSelectedDay(event_date as String, widget.usermail);
+      print("event id man is ${eventId}");
+      if (eventId != null) {
+        giftId = await getGiftIdForEvent(eventId!, widget.gift['gift_name']);
+        setState(() {});
+      }
+    } catch (e) {
+      print('Error fetching IDs: $e');
+    }
+  }
+
+  Future<String?> getEventIdForSelectedDay(String _selectedDay, String currentLoggedMail) async {
+    try {
+      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentLoggedMail)
+          .collection('events')
+          .where('date', isEqualTo: _selectedDay)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        String eventId = querySnapshot.docs.first.id;
+        print('Found event with ID: $eventId');
+        return eventId;
+      } else {
+        print('No event found for the selected day $_selectedDay');
+      }
+    } catch (e) {
+      print('Error while searching for event: $e');
+    }
+    return null;
+  }
+
+  Future<String?> getGiftIdForEvent(String eventId, String giftName) async {
+    try {
+      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.usermail)
+          .collection('events')
+          .doc(eventId)
+          .collection('gifts')
+          .where('gift_name', isEqualTo: giftName)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        String giftId = querySnapshot.docs.first.id;
+        print('Found gift with ID: $giftId');
+        return giftId;
+      } else {
+        print('No gift found with name $giftName in event $eventId');
+      }
+    } catch (e) {
+      print('Error while searching for gift: $e');
+    }
+    return null;
+  }
   void pledgeGift(String buyerMail, String receiverMail, String gift_name) async {
     try {
       // Add the pledge to the 'notifications' collection
@@ -267,14 +333,12 @@ class __GiftTileState extends State<_GiftTile> {
         'gift_name': gift_name,
       });
 
-      // Search through the 'events' and 'gifts' collections to find the gift
       var usersCollection = FirebaseFirestore.instance.collection('users');
       var userDoc = await usersCollection.doc(buyerMail).get();
 
       if (userDoc.exists) {
         print("User document found");
 
-        // Get all events from this user
         var eventsCollection = userDoc.reference.collection('events');
         var eventsSnapshot = await eventsCollection.get();
 
@@ -283,19 +347,16 @@ class __GiftTileState extends State<_GiftTile> {
 
           var giftsCollection = eventDoc.reference.collection('gifts');
 
-          // Search for the gift based on its name or other attributes
           var giftsSnapshot = await giftsCollection.where('gift_name', isEqualTo: widget.gift['gift_name']).get();
 
           if (giftsSnapshot.docs.isNotEmpty) {
             var giftDoc = giftsSnapshot.docs.first;
             print("Gift found: ${giftDoc.data()}");
 
-            // Update its status to 'pledged'
             await giftDoc.reference.update({
               'status': 'pledged',
             });
 
-            // Add the gift to the 'pledged_gifts' collection of the current user
             await FirebaseFirestore.instance.collection('users')
                 .doc(current_logged_mail)
                 .collection('pledged_gifts')
@@ -309,7 +370,7 @@ class __GiftTileState extends State<_GiftTile> {
               SnackBar(content: Text('Gift pledged successfully!')),
             );
 
-            return; // Exit after successful pledge
+            return;
           } else {
             print("No gift found for ${widget.gift['gift_name']} in this event");
           }
@@ -318,12 +379,10 @@ class __GiftTileState extends State<_GiftTile> {
         print("User document not found");
       }
 
-      // If the gift was not found
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Gift not found!')),
       );
     } catch (e) {
-      // Handle any errors
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error pledging gift: $e')),
       );
@@ -340,13 +399,13 @@ class __GiftTileState extends State<_GiftTile> {
           actions: <Widget>[
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(false); // User pressed "No"
+                Navigator.of(context).pop(false);
               },
               child: Text('No'),
             ),
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(true); // User pressed "Yes"
+                Navigator.of(context).pop(true);
               },
               child: Text('Yes'),
             ),
@@ -368,45 +427,43 @@ class __GiftTileState extends State<_GiftTile> {
     }
   }
 
-  Future<void> getEventIdForSelectedDay(String _selectedDay, String currentLoggedMail) async {
-    try {
-      // Query the 'users' collection to find the event document by date inside the 'events' subcollection
-      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentLoggedMail)
-          .collection('events')
-          .where('date', isEqualTo: _selectedDay)
-          .get();
-
-      if (querySnapshot.docs.isNotEmpty) {
-        String eventId = querySnapshot.docs.first.id;
-        print('Found event with ID: $eventId');
-      } else {
-        print('Error: No event found for the selected day $_selectedDay');
-      }
-    } catch (e) {
-      print('Error while searching for event: $e');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     print('Current logged email: ${widget.current_logged_mail}');
     print('Event date: ${widget.event_date}');
     print('Gift name: ${widget.gift['gift_name']}');
-    var event_id = getEventIdForSelectedDay(event_date , widget.current_logged_mail);
+    if (eventId == null || giftId == null) {
+      return Center(child: CircularProgressIndicator());
+    }
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(current_logged_mail)
+        .collection('events')
+        .doc(eventId)
+        .collection('gifts')
+        .doc(giftId)
+        .get()
+        .then((doc) {
+      if (doc.exists) {
+        print('Document exists');
+      } else {
+        print('Document does not exist');
+      }
+    });
+
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
-          .doc(widget.current_logged_mail)
+          .doc(widget.usermail)
           .collection('events')
-          .doc('9Nn8VGiTrk1HG48gbcUN')
+          .doc(eventId! as String)
           .collection('gifts')
-          .doc('m1dRDrahElsr9LhAl3Tt')
+          .doc(giftId! as String)
           .snapshots(),
+
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return CircularProgressIndicator(); // Loading state
+          return CircularProgressIndicator();
         }
 
         if (snapshot.hasError) {
@@ -423,7 +480,6 @@ class __GiftTileState extends State<_GiftTile> {
           return Text('Gift data is null');
         }
 
-        // Determine the icon based on the gift's status
         IconData giftIcon = giftData['status'] == 'pledged'
             ? Icons.check_circle
             : Icons.card_giftcard;
@@ -434,8 +490,8 @@ class __GiftTileState extends State<_GiftTile> {
 
         return ListTile(
           leading: CircleAvatar(
-            backgroundImage:
-                NetworkImage('https://cdn.pixabay.com/photo/2019/10/22/03/34/gift-4567561_640.jpg')
+              backgroundImage:
+              NetworkImage('https://cdn.pixabay.com/photo/2019/10/22/03/34/gift-4567561_640.jpg')
 
           ),
           title: Text(widget.gift['gift_name'] ?? 'Unnamed Gift'),

@@ -238,7 +238,6 @@ class LocalDatabase {
     }
   }
 
-  // Add event to Firebase
   Future<void> insertEventToFirebase(String mail, String eventName, String date) async {
     try {
       FirebaseFirestore firestore = FirebaseFirestore.instance;

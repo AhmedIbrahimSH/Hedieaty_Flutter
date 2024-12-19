@@ -25,12 +25,10 @@ class _GiftsPageState extends State<GiftsPage> {
     fetchFirebaseGifts();
   }
 
-  // Fetch gifts from SQLite database filtered by eventId
   Future<void> fetchLocalGifts(eventName) async {
     final dbPath = await getDatabasesPath();
     final database = await openDatabase(join(dbPath, 'local_db.db'));
 
-    // Filter gifts based on the eventId
     final List<Map<String, dynamic>> result = await database.query(
       'gifts',
       where: 'event_name = ?',
@@ -65,7 +63,6 @@ class _GiftsPageState extends State<GiftsPage> {
           giftNames.add(giftName);
         }
 
-        // Update state with the fetched gift names
         setState(() {
           firebaseGiftNames = giftNames;
         });
@@ -95,7 +92,6 @@ class _GiftsPageState extends State<GiftsPage> {
         return;
       }
 
-      // Step 2: Retrieve the event document ID from the first matching event
       String eventId = eventSnapshot.docs.first.id;
       print("Found Event ID: $eventId");
 
@@ -138,12 +134,12 @@ class _GiftsPageState extends State<GiftsPage> {
               ),
               subtitle: Text('Price: \$${gift['price']} \nStatus: ${gift['status']}'),
               trailing: existsInFirebase
-                  ? Icon(Icons.cloud_done, color: Colors.green) // Gift already exists in Firebase
+                  ? Icon(Icons.cloud_done, color: Colors.green)
                   : IconButton(
                 icon: Icon(Icons.cloud_upload, color: Colors.blue),
                 onPressed: () {addGiftByEventName(eventName, gift);setState(() {
                       fetchFirebaseGifts();
-                });}, // Insert gift to Firebase
+                });},
               ),
             ),
           );

@@ -2,6 +2,7 @@ import 'package:app/login/signup.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:overlay_support/overlay_support.dart';
 import '../firebase/fire_auth.dart';
 import '../homepage.dart';
 import '../local_database/local_sql_init.dart';
@@ -9,7 +10,11 @@ import '../local_database/local_sql_init.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  runApp(MyApp());
+  runApp(
+    OverlaySupport.global(  // Wrap the app with OverlaySupport.global
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -34,30 +39,30 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final GlobalKey loginTextFieldKey = GlobalKey();
+  final GlobalKey PasswordTextFieldKey = GlobalKey();
+  final GlobalKey LoginButtonKey = GlobalKey();
+
   final AuthService _user_auth = AuthService();
-  String _errorMessage = ''; // Variable to hold error message
+  String _errorMessage = '';
 
   Future<bool> login_check(String user_mail, String user_password) async {
     try {
       print("Email: $user_mail, Password: $user_password");
 
-      // Query Firestore users collection to find a document with the given email
       var userSnapshot = await FirebaseFirestore.instance
           .collection('users')
           .where('mail', isEqualTo: user_mail)
           .get();
 
-      // Check if the user exists in the collection
       if (userSnapshot.docs.isEmpty) {
         setState(() {
           _errorMessage = "No account found with this email. Please sign up.";
         });
         return false;
       } else {
-        // Get the user document (assuming only one user with the email)
         var userDoc = userSnapshot.docs.first;
 
-        // Check if the provided password matches the stored password
         if (userDoc['password'] == user_password) {
           print("Authentication successful: ${userDoc.data()}");
           return true;
@@ -111,7 +116,6 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     SizedBox(height: 20),
 
-                    // Error message display
                     if (_errorMessage.isNotEmpty)
                       Text(
                         _errorMessage,
@@ -124,6 +128,7 @@ class _LoginPageState extends State<LoginPage> {
                     SizedBox(height: 15),
 
                     TextField(
+                      key: loginTextFieldKey,
                       controller: _emailController,
                       decoration: InputDecoration(
                         labelText: 'Email',
